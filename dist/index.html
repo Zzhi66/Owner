@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <meta name="description" content="Owner 个人工作台：身体、习惯、饮食、学习工作与资产，以及个人 Agent 工作区的交互原型。">
+  <title>Owner · 我的工作台</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="app.css">
+  <link rel="stylesheet" href="jarvis.css">
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#page-title">跳到页面内容</a>
+  <div class="landscape" aria-hidden="true"><span></span><span></span><span></span></div>
+  <aside class="navigation" aria-label="主导航">
+    <a class="brand-mark" href="#overview" aria-label="Owner 首页"><svg viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="21"/><circle cx="24" cy="24" r="15"/><path d="m24 13 11 19H13Z"/></svg></a>
+    <nav id="domain-nav"></nav>
+    <div class="nav-bottom">
+      <button class="nav-item" data-action="theme" aria-label="切换外观"><span data-icon="moon"></span><span>外观</span></button>
+      <button class="nav-item" data-action="settings"><span data-icon="settings"></span><span>设置</span></button>
+    </div>
+  </aside>
+
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="breadcrumbs"><strong>OWNER<span class="brand-sub"> / PERSONAL OS</span></strong><span class="breadcrumb-divider">/</span><span id="nav-location">总览</span></div>
+      <div class="topbar-actions"><span class="prototype-badge"><i></i>交互原型 · 示例数据</span><button class="icon-button" data-action="sources" aria-label="查看数据来源"><span data-icon="database"></span></button><button class="avatar" data-action="settings" aria-label="个人设置">我</button></div>
+    </header>
+
+    <section class="page-intro" aria-label="页面概览">
+      <div class="intro-copy"><span class="console-label">PERSONAL COMMAND CENTER <i></i></span><h1 id="page-title" tabindex="-1">个人控制中心</h1><p id="page-description">感知当下，掌握自己的节奏。</p><div class="intro-actions"><button class="primary-button" data-action="quick-record"><span data-icon="plus"></span>快速记录</button><div class="eyebrow" id="date-label">示例日期 · 2026 年 10 月 14 日 · 星期三</div></div></div>
+      <div class="core-display" aria-hidden="true"><div class="core-orbit"></div><svg class="core-rings" viewBox="0 0 220 220"><circle class="core-track" cx="110" cy="110" r="104"/><circle class="core-ticks" cx="110" cy="110" r="95"/><circle class="core-arc" cx="110" cy="110" r="82"/><circle class="core-inner" cx="110" cy="110" r="68"/><path class="core-triangle" d="m110 72 36 63H74Z"/></svg><span class="core-caption">J.A.R.V.I.S.<small>LOCAL INTERFACE</small></span></div>
+      <div class="intro-rail"><span><i></i> 本地工作台</span><span>手动记录 + 示例数据</span><span>OWNER / HUD v1.0</span></div>
+    </section>
+
+    <main class="workbench" id="overview">
+      <div class="personal-area">
+        <div id="overview-content">
+        <section id="asset-overview" class="asset-overview" aria-labelledby="assets-card-title"></section>
+        <section class="today-todos glass-panel" aria-labelledby="today-todos-title">
+          <div class="today-todos-heading"><div class="today-todos-label"><span class="domain-symbol" data-icon="check-list"></span><h2 id="today-todos-title">今日待办</h2><span id="today-todo-count" class="todo-count"></span></div><button class="card-link" data-action="show-todos">查看全部 <span data-icon="arrow-right"></span></button></div>
+          <div id="schedule-summary" class="schedule-summary"></div>
+          <div id="today-todo-list" class="today-todo-list"></div>
+          <div id="today-todo-completed"></div>
+          <form id="today-todo-form" class="todo-add-form"><span data-icon="plus"></span><label class="sr-only" for="today-todo-input">添加今日待办</label><input id="today-todo-input" maxlength="160" placeholder="今天想推进什么？" autocomplete="off" required><button class="text-button" type="submit">添加</button></form>
+          <div id="todo-add-status" class="todo-add-status" aria-live="polite" hidden></div>
+        </section>
+        <section aria-labelledby="personal-title">
+          <div class="area-heading"><h2 id="personal-title"><span class="section-code">03 /</span> 我的近况</h2><span class="section-hint">PERSONAL TELEMETRY · 从记录看见变化</span></div>
+          <div id="dashboard-cards" class="dashboard-grid"></div>
+        </section>
+        </div>
+
+        <div id="domain-content" hidden>
+        <div class="detail-toolbar"><button class="text-button" data-nav="overview">← 返回总览</button><div class="period-picker" aria-label="详情统计时间范围"><button data-range="7" aria-pressed="true">近 7 天</button><button data-range="30" aria-pressed="false">近 30 天</button></div></div>
+        <section class="detail-panel glass-panel" aria-labelledby="detail-title">
+          <div class="panel-heading"><div><span class="eyebrow small" id="detail-eyebrow">BODY & MIND</span><h3 id="detail-title">身体的节奏</h3></div><div class="panel-tools"><button class="text-button" data-action="send-context"><span data-icon="sparkles"></span>交给 Agent</button><button class="icon-button" data-action="add-selected" aria-label="添加当前板块记录"><span data-icon="plus"></span></button></div></div>
+          <div id="detail-content"></div>
+          <div class="detail-footer" id="detail-footer"></div>
+        </section>
+        </div>
+      </div>
+
+      <aside id="agent-window" class="agent-area glass-panel" role="dialog" aria-modal="false" aria-labelledby="agent-title" hidden>
+        <div class="agent-header"><div class="agent-emblem" data-icon="sparkles"></div><div><h2 id="agent-title">J.A.R.V.I.S. <span class="agent-subtitle">个人 Agent</span></h2><p><span class="status-dot"></span>工作区已就绪 <span class="demo-label">演示模式</span></p></div><div class="agent-header-actions"><button class="icon-button" data-action="agent-info" aria-label="查看 Agent 演示说明"><span data-icon="info"></span></button><button class="icon-button" data-action="agent-close" aria-label="收起 Agent 工作窗"><span data-icon="x"></span></button></div></div>
+        <div class="agent-tabs" role="tablist" aria-label="Agent 工作区"><button id="tab-chat" role="tab" aria-controls="panel-chat" aria-selected="true" data-agent-tab="chat"><span data-icon="message"></span>对话</button><button id="tab-tasks" role="tab" aria-controls="panel-tasks" aria-selected="false" data-agent-tab="tasks"><span data-icon="check-list"></span>任务 <span id="task-count">0</span></button><button id="tab-artifacts" role="tab" aria-controls="panel-artifacts" aria-selected="false" data-agent-tab="artifacts"><span data-icon="file"></span>产物 <span id="artifact-count">0</span></button></div>
+        <div class="context-strip"><span data-icon="link"></span><div><span>当前上下文</span><strong id="agent-context">个人总览 · 近 7 天</strong></div><button class="icon-button" data-action="clear-context" aria-label="切换到个人总览"><span data-icon="x"></span></button></div>
+
+        <section id="panel-chat" class="agent-panel" role="tabpanel" aria-labelledby="tab-chat">
+          <div id="chat-feed" class="chat-feed" role="log" aria-label="Agent 对话记录" aria-live="polite"></div>
+          <div class="suggestion-area"><span>从一件小事开始</span><div class="suggestion-list"><button data-prompt="帮我整理一份本周个人复盘"><span data-icon="leaf"></span>本周复盘</button><button data-prompt="整理我还没完成的任务"><span data-icon="check-list"></span>整理待办</button><button data-prompt="查看这些记录还缺少什么"><span data-icon="search"></span>查看缺失记录</button></div></div>
+          <form id="agent-form" class="agent-composer"><label class="sr-only" for="agent-input">向 Agent 描述任务</label><textarea id="agent-input" rows="2" maxlength="1000" placeholder="想了解什么，或想推进哪件事？"></textarea><div class="composer-footer"><span><span data-icon="shield"></span>基于本地原型记录</span><button id="send-button" class="send-button" type="submit" aria-label="发送任务"><span data-icon="arrow-up"></span></button></div></form>
+          <p class="agent-disclaimer">演示回复由本地规则生成，尚未连接 AI 模型。</p>
+        </section>
+        <section id="panel-tasks" class="agent-panel list-panel" role="tabpanel" aria-labelledby="tab-tasks" hidden><div id="agent-tasks"></div></section>
+        <section id="panel-artifacts" class="agent-panel list-panel" role="tabpanel" aria-labelledby="tab-artifacts" hidden><div id="agent-artifacts"></div></section>
+      </aside>
+    </main>
+    <footer class="app-footer"><span>记录保存在当前浏览器</span><button class="text-button" data-action="sources"><span data-icon="database"></span>数据来源</button></footer>
+  </div>
+
+  <button id="agent-launcher" class="agent-launcher" data-action="agent-toggle" aria-label="打开个人 Agent" aria-expanded="false" aria-controls="agent-window" aria-haspopup="dialog"><span class="agent-launcher-icon" data-icon="sparkles"></span><span class="agent-launcher-label">个人 Agent</span></button>
+
+  <dialog id="capture-dialog" class="modal" aria-labelledby="capture-title"><div class="modal-heading"><div><h2 id="capture-title">记录一点当下</h2><p class="metric-label">选择记录类型，或留下一条想法。</p></div><button class="icon-button" data-close-dialog aria-label="关闭快速记录"><span data-icon="x"></span></button></div><div id="record-shortcuts" class="record-shortcuts"></div><section class="capture-bar" aria-label="随手记"><form id="quick-capture"><label class="sr-only" for="quick-note">随手记</label><input id="quick-note" maxlength="300" placeholder="一闪而过的想法，也值得留下…" autocomplete="off" required><button class="capture-submit" type="submit" aria-label="保存快速记录"><span data-icon="arrow-up"></span></button></form></section><div id="capture-status" class="capture-status" aria-live="polite">记录只保存在当前浏览器，可在设置中导出。</div></dialog>
+  <dialog id="record-dialog" class="modal"><form id="record-form"><div class="modal-heading"><div><span class="eyebrow small">A LITTLE UPDATE</span><h2 id="record-title">补充记录</h2></div><button class="icon-button" type="button" data-close-dialog aria-label="关闭"><span data-icon="x"></span></button></div><div id="record-fields" class="record-fields"></div><div class="modal-footer"><span>手动记录 · 保存在当前浏览器</span><button class="primary-button" type="submit">保存记录 <span data-icon="check"></span></button></div></form></dialog>
+  <dialog id="personal-dialog" class="modal" aria-labelledby="personal-record-title"><form id="personal-form"><div class="modal-heading"><h2 id="personal-record-title"></h2><button class="icon-button" type="button" data-close-dialog aria-label="关闭编辑"><span data-icon="x"></span></button></div><div id="personal-fields" class="record-fields"></div><div class="modal-footer"><span>保存在当前浏览器</span><button class="primary-button" type="submit">保存</button></div></form></dialog>
+  <dialog id="content-dialog" class="modal content-modal"><div class="modal-heading"><div><span class="eyebrow small" id="content-eyebrow"></span><h2 id="content-title"></h2></div><button class="icon-button" type="button" data-close-dialog aria-label="关闭"><span data-icon="x"></span></button></div><div id="content-body"></div></dialog>
+  <div id="toast" class="toast" role="status" hidden></div>
+</body>
+</html>

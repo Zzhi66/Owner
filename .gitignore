@@ -1,0 +1,36 @@
+# Local dependencies, generated output and caches
+node_modules/
+build/
+coverage/
+.cache/
+.vite/
+*.log
+*.tsbuildinfo
+tmp/
+temp/
+
+# Local credentials and personal data (never commit browser exports)
+.env
+.env.*
+!.env.example
+owner-records-*.json
+data/
+backups/
+*.sqlite
+*.sqlite3
+*.db
+
+# Machine-specific configuration
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+.codex/
+.agents/
+
+# Keep only the accepted visual baseline; historical local references stay on disk.
+reference/*
+!reference/README.md
+!reference/owner-jarvis-overview.jpg
+
+# dist/ is currently hand-authored source, NOT generated output. Track it.
