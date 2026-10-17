@@ -1,71 +1,331 @@
-import styles from './App.module.css';
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
+import { Icon } from '../components/Icon';
+import { DOMAINS } from '../domain/models';
+import type { DialogRequest, ModuleProps, View } from '../domain/models';
+import { Overview } from '../features/overview/Overview';
+import { usePrototype } from './usePrototype';
 
-const nextModules = [
-  { code: '01', name: '资产概览', description: '账户、净资产与金额隐藏' },
-  { code: '02', name: '今日行动', description: '待办、日程与重要日期' },
-  { code: '03', name: '个人近况', description: '身体、饮食、投入与习惯' },
-  { code: '04', name: 'Agent 工作区', description: '右侧浮窗、任务与产物' },
-] as const;
+const DomainDetails = lazy(() =>
+  import('../features/details/DomainDetails').then((module) => ({ default: module.DomainDetails })),
+);
+const AgentWorkspace = lazy(() =>
+  import('../features/agent/AgentWorkspace').then((module) => ({ default: module.AgentWorkspace })),
+);
+const RecordEditor = lazy(() =>
+  import('../features/records/RecordEditor').then((module) => ({ default: module.RecordEditor })),
+);
+const Managers = lazy(() =>
+  import('../features/records/Managers').then((module) => ({ default: module.Managers })),
+);
 
+function viewFromHash(): View {
+  const value = window.location.hash.slice(1);
+  return DOMAINS.some((domain) => domain.id === value) ? (value as View) : 'overview';
+}
 export function App() {
+  const [toastText, setToastText] = useState('');
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const toast = useCallback((message: string) => {
+    setToastText(message);
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    toastTimer.current = setTimeout(() => setToastText(''), 4000);
+  }, []);
+  useEffect(
+    () => () => {
+      if (toastTimer.current) clearTimeout(toastTimer.current);
+    },
+    [],
+  );
+  const { state, warning, mutate } = usePrototype(toast);
+  const [view, setView] = useState<View>(viewFromHash);
+  const [dialog, setDialog] = useState<DialogRequest | null>(null);
+  const [agentOpen, setAgentOpen] = useState(false);
+  const [agentLoaded, setAgentLoaded] = useState(false);
+  const closeDialog = useCallback(() => setDialog(null), []);
+  const open = useCallback(
+    (request: DialogRequest) => {
+      if (
+        request.kind === 'record' &&
+        request.record === 'goal' &&
+        !request.id &&
+        state.goals.length >= 3
+      ) {
+        toast('最多保留 3 个阶段目标，可先编辑或删除已有目标');
+        return;
+      }
+      setDialog(request);
+    },
+    [state.goals.length, toast],
+  );
+  const closeAgent = useCallback(() => {
+    setAgentOpen(false);
+    queueMicrotask(() => document.getElementById('agent-launcher')?.focus({ preventScroll: true }));
+  }, []);
+  const onAgent = useCallback(
+    (context: View) => {
+      mutate((draft) => {
+        draft.context = context;
+        draft.agentTab = 'chat';
+      });
+      setAgentLoaded(true);
+      setAgentOpen(true);
+    },
+    [mutate],
+  );
+  const navigate = useCallback((next: View) => {
+    if (window.location.hash !== `#${next}`) window.location.hash = next;
+    else {
+      window.scrollTo({ top: 0 });
+      document.getElementById('page-title')?.focus({ preventScroll: true });
+    }
+  }, []);
+  useEffect(() => {
+    const normalize = () => {
+      const next = viewFromHash();
+      if (window.location.hash !== `#${next}`) window.history.replaceState(null, '', `#${next}`);
+      return next;
+    };
+    normalize();
+    const change = () => {
+      const next = normalize();
+      setView(next);
+      mutate((draft) => {
+        draft.context = next;
+        if (next !== 'overview') draft.selected = next;
+      });
+      window.scrollTo({ top: 0 });
+      queueMicrotask(() => document.getElementById('page-title')?.focus({ preventScroll: true }));
+    };
+    window.addEventListener('hashchange', change);
+    return () => window.removeEventListener('hashchange', change);
+  }, [mutate]);
+  useEffect(() => {
+    document.documentElement.dataset.theme = state.theme;
+    document.title = `Owner · ${view === 'overview' ? '我的工作台' : DOMAINS.find((domain) => domain.id === view)?.name || '总览'}`;
+  }, [state.theme, view]);
+  const domain = DOMAINS.find((item) => item.id === view);
+  const moduleProps: ModuleProps = { state, mutate, open, navigate, toast, onAgent };
+  const dialogKey = dialog
+    ? dialog.kind +
+      ('id' in dialog ? dialog.id || '' : '') +
+      (dialog.kind === 'record' ? dialog.record : '')
+    : '';
   return (
-    <div className={styles.shell}>
-      <a className="skip-link" href="#main-content">
+    <>
+      <a
+        className="skip-link"
+        href="#overview"
+        onClick={(event) => {
+          event.preventDefault();
+          document.getElementById('page-title')?.focus();
+        }}
+      >
         跳到页面内容
       </a>
-      <header className={styles.header}>
-        <a className={styles.brand} href="#main-content" aria-label="Owner 开发工作台首页">
-          OWNER <span>/ PERSONAL OS</span>
-        </a>
-        <span className={styles.badge}>P0 · 工程入口</span>
-      </header>
-      <main id="main-content" tabIndex={-1}>
-        <section className={styles.hero} aria-labelledby="page-title">
-          <div>
-            <p className={styles.eyebrow}>FOUNDATION / REACT WORKSPACE</p>
-            <h1 id="page-title">个人工作台，正式起步。</h1>
-            <p className={styles.description}>
-              从已经确认的贾维斯界面出发，逐步建立可长期使用的个人工作台。
-            </p>
-            <a className={styles.primaryLink} href="http://127.0.0.1:4173/#overview">
-              查看现有界面原型 <span aria-hidden="true">↗</span>
-            </a>
-          </div>
-          <svg className={styles.core} viewBox="0 0 180 180" aria-hidden="true">
-            <circle cx="90" cy="90" r="84" />
-            <circle cx="90" cy="90" r="72" strokeDasharray="4 8" />
-            <circle cx="90" cy="90" r="59" />
-            <path d="m90 53 33 58H57Z" />
+      <div className="landscape" aria-hidden="true" />
+      <aside className="navigation" aria-label="主导航">
+        <a className="brand-mark" href="#overview" aria-label="Owner 首页">
+          <svg viewBox="0 0 48 48" aria-hidden="true">
+            <circle cx="24" cy="24" r="21" />
+            <circle cx="24" cy="24" r="15" />
+            <path d="m24 13 11 19H13Z" />
           </svg>
-          <p className={styles.heroFooter}>REACT + TYPESCRIPT + VITE</p>
-        </section>
-
-        <section className={styles.notice} aria-labelledby="current-stage">
-          <h2 id="current-stage">当前阶段：工程骨架</h2>
-          <p>此入口用于后续组件迁移，尚未接入个人记录。完整交互仍在原型入口中体验。</p>
-        </section>
-
-        <section aria-labelledby="migration-title">
-          <div className={styles.sectionHeading}>
-            <h2 id="migration-title">接下来的迁移模块</h2>
-            <span>P1 / COMPONENTS</span>
+        </a>
+        <nav>
+          {([{ id: 'overview', short: '总览', icon: 'home' }, ...DOMAINS] as const).map((item) => (
+            <button
+              className={`nav-item ${view === item.id ? 'active' : ''}`}
+              key={item.id}
+              aria-current={view === item.id ? 'page' : undefined}
+              onClick={() => navigate(item.id)}
+            >
+              <Icon name={item.icon} />
+              <span>{item.short}</span>
+            </button>
+          ))}
+        </nav>
+        <div className="nav-bottom">
+          <button
+            className="nav-item"
+            aria-label="切换外观"
+            onClick={() =>
+              mutate((draft) => {
+                draft.theme = draft.theme === 'jarvis' ? 'midnight' : 'jarvis';
+              })
+            }
+          >
+            <Icon name={state.theme === 'jarvis' ? 'moon' : 'sun'} />
+            <span>外观</span>
+          </button>
+          <button className="nav-item" onClick={() => open({ kind: 'settings' })}>
+            <Icon name="settings" />
+            <span>设置</span>
+          </button>
+        </div>
+      </aside>
+      <div className="app-shell">
+        <header className="topbar">
+          <div className="breadcrumbs">
+            <strong>
+              OWNER<span className="brand-sub"> / PERSONAL OS</span>
+            </strong>
+            <span className="breadcrumb-divider">/</span>
+            <span id="nav-location">{domain?.name || '总览'}</span>
           </div>
-          <div className={styles.moduleGrid}>
-            {nextModules.map((module) => (
-              <article key={module.code} className={styles.module}>
-                <span className={styles.moduleCode}>{module.code} /</span>
-                <h3>{module.name}</h3>
-                <p>{module.description}</p>
-                <span className={styles.pending}>待迁移</span>
-              </article>
-            ))}
+          <div className="topbar-actions">
+            <span className="prototype-badge">
+              <i />
+              交互原型 · 示例与手动记录
+            </span>
+            <button
+              className="icon-button"
+              onClick={() => open({ kind: 'sources' })}
+              aria-label="查看数据来源"
+            >
+              <Icon name="database" />
+            </button>
+            <button
+              className="avatar"
+              onClick={() => open({ kind: 'settings' })}
+              aria-label="个人设置"
+            >
+              我
+            </button>
+          </div>
+        </header>
+        {warning && (
+          <div className="storage-warning" role="alert">
+            <p>{warning}</p>
+            <button className="text-button" onClick={() => open({ kind: 'settings' })}>
+              查看设置与导出原始内容
+            </button>
+          </div>
+        )}
+        <section className="page-intro" aria-label="页面概览">
+          <div className="intro-copy">
+            <span className="console-label">
+              PERSONAL COMMAND CENTER <i />
+            </span>
+            <h1 id="page-title" tabIndex={-1}>
+              {domain?.name || '个人控制中心'}
+            </h1>
+            <p>
+              {view === 'overview'
+                ? '感知当下，掌握自己的节奏。'
+                : '追踪每一次变化，让记录成为下一步的依据。'}
+            </p>
+            <div className="intro-actions">
+              <button className="primary-button" onClick={() => open({ kind: 'quick' })}>
+                <Icon name="plus" />
+                快速记录
+              </button>
+              <div className="eyebrow">示例日期 · 2026 年 10 月 14 日 · 星期三</div>
+            </div>
+          </div>
+          <div className="core-display" aria-hidden="true">
+            <div className="core-orbit" />
+            <svg className="core-rings" viewBox="0 0 220 220">
+              <circle className="core-track" cx="110" cy="110" r="104" />
+              <circle className="core-ticks" cx="110" cy="110" r="95" />
+              <circle className="core-arc" cx="110" cy="110" r="82" />
+              <circle className="core-inner" cx="110" cy="110" r="68" />
+              <path className="core-triangle" d="m110 72 36 63H74Z" />
+            </svg>
+            <span className="core-caption">
+              J.A.R.V.I.S.<small>LOCAL INTERFACE</small>
+            </span>
+          </div>
+          <div className="intro-rail">
+            <span>
+              <i /> 本地工作台
+            </span>
+            <span>手动记录 + 示例数据</span>
+            <span>OWNER / HUD v1.0</span>
           </div>
         </section>
-      </main>
-      <footer className={styles.footer}>
-        <span>OWNER / DEVELOPMENT FOUNDATION</span>
-        <span>保留原型，逐步迁移</span>
-      </footer>
-    </div>
+        <main className="workbench" id="overview">
+          <div className="personal-area">
+            {view === 'overview' ? (
+              <Overview {...moduleProps} />
+            ) : (
+              <Suspense
+                fallback={
+                  <p className="empty-line" role="status">
+                    正在打开详情…
+                  </p>
+                }
+              >
+                <DomainDetails {...moduleProps} view={view} />
+              </Suspense>
+            )}
+          </div>
+        </main>
+        <footer className="app-footer">
+          <span>记录保存在当前浏览器</span>
+          <button className="text-button" onClick={() => open({ kind: 'sources' })}>
+            <Icon name="database" />
+            数据来源
+          </button>
+        </footer>
+      </div>
+      {agentLoaded && (
+        <Suspense
+          fallback={
+            <p className="toast" role="status">
+              正在打开工作窗…
+            </p>
+          }
+        >
+          <AgentWorkspace {...moduleProps} isOpen={agentOpen} onClose={closeAgent} />
+        </Suspense>
+      )}
+      <button
+        id="agent-launcher"
+        className="agent-launcher"
+        onClick={() => {
+          if (agentOpen) closeAgent();
+          else {
+            if (!agentLoaded) {
+              mutate((draft) => {
+                draft.context = view;
+                if (view !== 'overview') draft.selected = view;
+              });
+            }
+            setAgentLoaded(true);
+            setAgentOpen(true);
+          }
+        }}
+        aria-label={agentOpen ? '收起个人 Agent' : '打开个人 Agent'}
+        aria-expanded={agentOpen}
+        aria-controls="agent-window"
+        aria-haspopup="dialog"
+      >
+        <span className="agent-launcher-icon">
+          <Icon name={agentOpen ? 'x' : 'sparkles'} />
+        </span>
+        <span className="agent-launcher-label">
+          {agentOpen ? '收起 J.A.R.V.I.S.' : 'J.A.R.V.I.S. / Agent'}
+        </span>
+      </button>
+      <Suspense
+        fallback={
+          <p className="toast" role="status">
+            正在打开记录窗口…
+          </p>
+        }
+      >
+        {dialog &&
+          (dialog.kind === 'record' ? (
+            <RecordEditor key={dialogKey} {...moduleProps} request={dialog} onClose={closeDialog} />
+          ) : (
+            <Managers key={dialogKey} {...moduleProps} request={dialog} onClose={closeDialog} />
+          ))}
+      </Suspense>
+      {toastText && (
+        <div className="toast" role="status">
+          {toastText}
+        </div>
+      )}
+    </>
   );
 }

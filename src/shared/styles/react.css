@@ -1,0 +1,67 @@
+/* Small React-specific adjustments; HUD values remain in the migrated theme. */
+#root {
+  min-height: 100dvh;
+}
+.storage-warning {
+  border: 1px solid var(--warm);
+  padding: 14px 18px;
+  margin-top: 18px;
+  color: var(--warm);
+  background: var(--surface);
+}
+.form-error {
+  border-left: 2px solid var(--danger);
+  color: var(--danger);
+  padding: 8px 12px;
+  margin-bottom: 16px;
+}
+.form-delete {
+  color: var(--danger);
+  justify-self: start;
+}
+.import-hint {
+  padding: 12px;
+  background: var(--hover);
+  margin-bottom: 18px;
+  color: var(--muted);
+}
+.detail-panel .panel-heading h2 {
+  font-size: 18px;
+  font-weight: 500;
+}
+.data-chart {
+  min-height: 154px;
+}
+.agent-header p {
+  flex-wrap: wrap;
+}
+.agent-tabs button {
+  min-height: 44px;
+}
+.message-bubble {
+  overflow-wrap: anywhere;
+}
+.migration-label {
+  font-size: 10px;
+  color: var(--muted);
+}
+.settings-actions {
+  align-items: center;
+}
+.agent-launcher {
+  max-width: calc(100% - 32px);
+}
+@media (max-width: 600px) {
+  .page-intro h1 {
+    font-size: 26px;
+  }
+  .record-row {
+    flex-wrap: wrap;
+  }
+  .card-main {
+    flex-wrap: wrap;
+  }
+  .detail-panel .panel-heading {
+    flex-wrap: wrap;
+  }
+}
