@@ -48,12 +48,13 @@ Agent 回复由本地规则生成，用于验证交互，没有接入 AI 模型�
 ## 开始正式开发
 
 - [产品基线](docs/PRODUCT.md)：已经确认的范围与交互。
+- [实现计划](docs/IMPLEMENTATION_PLAN.md)：React 技术栈、迁移方案、阶段交付与验收，以及 Three.js / Agent / 桌面扩展。
 - [开发指南](docs/DEVELOPMENT.md)：环境、代码结构、数据边界和验证方式。
 - [实施清单](docs/ROADMAP.md)：从日期与数据基础到正式 Agent 的开发顺序。
 - [开发约定](AGENTS.md)：后续协作的项目规则。
 - [视觉基线](reference/README.md)：当前已确认的界面参考。
 
-仓库准备阶段保留现有原型；框架、正式数据库和打包方式在相应阶段决定。
+仓库当前保留现有原型；实现计划采用 React + TypeScript + Vite、Dexie 本地存储，尚未安装或迁移。桌面打包与真实 Agent 在后续阶段决定。
 
 ## 基础检查
 
