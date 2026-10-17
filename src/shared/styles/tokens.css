@@ -1,0 +1,22 @@
+:root {
+  color-scheme: dark;
+  --color-page: #060e18;
+  --color-surface: #0b1927;
+  --color-solid: #0d1e2e;
+  --color-text: #e2f2fc;
+  --color-muted: #9ab3c5;
+  --color-border: #244456;
+  --color-accent: #5be1ef;
+  --color-on-accent: #04212a;
+  --color-warm: #eec479;
+  --font-sans: 'Segoe UI', 'Microsoft YaHei', 'PingFang SC', sans-serif;
+  --font-mono: 'Cascadia Code', Consolas, monospace;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-12: 48px;
+  --radius-panel: 4px;
+}

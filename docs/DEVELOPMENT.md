@@ -6,13 +6,28 @@
 
 ```sh
 npm ci
-npm run dev
-npm run check
+npm run dev:app
+npm run verify
 ```
 
-项目当前没有第三方依赖。`npm ci` 用于校验锁文件并准备一致环境，运行原型无需下载前端框架。Windows 若 PowerShell 限制 npm.ps1，可使用 `npm.cmd`。
+React 工程的依赖记录在 package.json 和锁文件中。Windows 若 PowerShell 限制 npm.ps1，可使用 `npm.cmd`。TypeScript 选用与 typescript-eslint 兼容的 6.0 系列，依赖升级时需一起检查兼容范围。
 
-服务地址为 http://127.0.0.1:4173，只绑定本机。`npm start` 与 `npm run dev` 等价。没有热更新，编辑后刷新页面。端口被占用时先检查是否已有本项目服务，不要终止未知进程。PowerShell 可通过 `$env:PORT = '4174'` 在当前终端指定其他端口。
+| 命令 | 用途 |
+| --- | --- |
+| npm run dev / npm start / npm run dev:prototype | 手写原型，http://127.0.0.1:4173 |
+| npm run dev:app | React 开发入口及热更新，http://127.0.0.1:5173 |
+| npm run check | 现有原型和静态服务语法检查 |
+| npm run typecheck | 应用和工具配置的严格 TypeScript 检查 |
+| npm run lint | 新源码、工具脚本及服务的静态规则检查 |
+| npm run format / npm run format:check | 格式化 / 检查新工程文件，排除旧原型 |
+| npm test / npm run test:watch | Vitest 单次 / 监听模式 |
+| npm run build | 类型检查后输出 build/，校验 dist/ 完整性 |
+| npm run preview:app | 本地预览构建结果，http://127.0.0.1:5174 |
+| npm run verify | 依次完成语法、类型、lint、格式、测试与构建 |
+
+所有服务只绑定本机。React 开发和预览使用 strictPort，不静默换端口；原型端口可通过当前终端的 PORT 环境变量调整。端口被占用时先检查是否已有本项目服务，不要终止未知进程。原型无热更新，编辑后刷新页面。
+
+P0 的 React 页面仅为开发入口，不读写 localStorage 或 IndexedDB。两套入口当前不共享业务状态。切换正式数据源前，仍须按实现计划完成迁移和验证。
 
 ## 当前代码结构
 
@@ -23,10 +38,15 @@ npm run check
 | dist/jarvis.css | 当前 HUD 设计变量、视觉覆盖与响应式规则 |
 | dist/app.js | 数据初始化、localStorage、视图、表单、图表和演示 Agent |
 | server.cjs | 无依赖静态服务 |
+| src/main.tsx、src/app/ | React 挂载入口与开发阶段页面 |
+| src/shared/styles/ | HUD tokens 和通用样式 |
+| scripts/build.mjs、scripts/build-path.mjs | 构建输出保护与原型完整性验证 |
+| tests/ | 构建路径保护测试 |
+| vite.config.ts、tsconfig*.json | 开发 / 构建 / 测试和类型检查配置 |
 | reference/owner-jarvis-overview.jpg | 已确认的视觉基线 |
 | docs/ROADMAP.md | 待实施开发顺序 |
 
-`dist/` 目前是源码，不能清空，也不应加入忽略规则。正式引入构建工具时，先迁移源码到新的源目录，再定义构建输出；不能让构建命令覆盖唯一的源码。当前没有 build 命令、CI 或完整测试套件。
+`dist/` 是保留的手写原型源码，不能清空，也不应加入忽略规则。新源码位于 `src/`，Vite 输出固定到 `build/`。官方 `npm run build` 入口在调用 Vite 前拒绝其他输出目录，并在构建后核对原型文件 SHA-256 指纹。不要绕过入口用任意 outDir 构建。当前测试覆盖构建路径保护，业务测试与 CI 尚未建立。
 
 ## 数据边界
 
@@ -46,7 +66,7 @@ npm run check
 - 界面层：总览、领域详情、记录表单、Agent 面板及共享控件。
 - 适配层：后续同步来源和 Agent 服务，通过明确接口替换演示实现。
 
-这些是开发方向，当前尚未创建或实现这些模块。模型密钥不得放在浏览器源码或提交到仓库。
+目前仅建立 app、shared/styles 和工程工具，其他业务目录随实际迁移创建。领域服务、数据库及模型适配尚未实现。模型密钥不得放在浏览器源码或提交到仓库。
 
 ## 验收
 

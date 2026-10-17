@@ -14,8 +14,8 @@ temp/
 .env.*
 !.env.example
 owner-records-*.json
-data/
-backups/
+/data/
+/backups/
 *.sqlite
 *.sqlite3
 *.db
