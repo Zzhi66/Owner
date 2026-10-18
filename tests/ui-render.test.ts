@@ -11,7 +11,7 @@ import { dateOffset } from '../src/domain/selectors';
 function propsFor(state: WorkbenchState): ModuleProps {
   return {
     state,
-    mutate: () => true,
+    mutate: async () => true,
     open: () => {},
     navigate: () => {},
     toast: () => {},

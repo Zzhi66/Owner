@@ -1,10 +1,11 @@
+import { todayOf, completedNow } from '../../domain/selectors';
 import { useState } from 'react';
 import type { FormEvent } from 'react';
 import { Modal } from '../../components/Modal';
 import { Icon } from '../../components/Icon';
 import { DOMAINS } from '../../domain/models';
 import type { DialogRequest, ModuleProps } from '../../domain/models';
-import { createInitialState, STORAGE_KEY, TODAY } from '../../data/prototype';
+import { createInitialState, STORAGE_KEY } from '../../data/prototype';
 import { uid } from '../../domain/selectors';
 import { download } from '../../shared/download';
 
@@ -16,6 +17,7 @@ export function Managers({
   request,
   onClose,
 }: ModuleProps & { request: Exclude<DialogRequest, { kind: 'record' }>; onClose: () => void }) {
+  const TODAY = todayOf(state);
   const [confirmReset, setConfirmReset] = useState(false);
   const [note, setNote] = useState('');
   const titles = {
@@ -32,7 +34,7 @@ export function Managers({
     request.kind === 'artifact'
       ? state.artifacts.find((item) => item.id === request.id)
       : undefined;
-  function goalTodo(id: string) {
+  async function goalTodo(id: string) {
     const goal = state.goals.find((item) => item.id === id);
     if (!goal?.next || goal.progress === 100) return;
     if (state.tasks.some((task) => task.goalId === id && task.title === goal.next && !task.done)) {
@@ -40,7 +42,13 @@ export function Managers({
       return;
     }
     if (
-      mutate((draft) => {
+      await mutate((draft) => {
+        if (
+          draft.tasks.some(
+            (entry) => entry.goalId === id && entry.title === goal.next && !entry.done,
+          )
+        )
+          throw new Error('这一步已在待办中');
         draft.tasks.unshift({
           id: uid(),
           title: goal.next,
@@ -53,12 +61,12 @@ export function Managers({
     )
       toast('下一步已加入今日待办');
   }
-  function saveNote(event: FormEvent) {
+  async function saveNote(event: FormEvent) {
     event.preventDefault();
     const text = note.trim();
     if (!text) return;
     if (
-      mutate((draft) => {
+      await mutate((draft) => {
         draft.notes.push({ id: uid(), date: TODAY, text });
       })
     ) {
@@ -78,14 +86,15 @@ export function Managers({
       toast('当前无法读取本地原始记录');
     }
   }
-  function reset() {
+  async function reset() {
+    if (state.runtime?.kind !== 'demo') return;
     if (!confirmReset) {
       setConfirmReset(true);
       return;
     }
     download(JSON.stringify(state, null, 2), `owner-records-before-reset-${TODAY}.json`);
     if (
-      mutate((draft) => {
+      await mutate((draft) => {
         Object.assign(draft, { ...createInitialState(), theme: draft.theme });
       })
     ) {
@@ -113,7 +122,7 @@ export function Managers({
               <button
                 className="record-shortcut"
                 key={domain.id}
-                onClick={() => open({ kind: 'record', record: domain.id })}
+                onClick={async () => open({ kind: 'record', record: domain.id })}
               >
                 <span className={`domain-symbol ${domain.id}`}>
                   <Icon name={domain.icon} />
@@ -132,7 +141,7 @@ export function Managers({
               <button
                 className="record-shortcut"
                 key={item.record}
-                onClick={() => open({ kind: 'record', record: item.record })}
+                onClick={async () => open({ kind: 'record', record: item.record })}
               >
                 <span className="domain-symbol">
                   <Icon name={item.icon} />
@@ -149,7 +158,7 @@ export function Managers({
             <input
               id="quick-note"
               value={note}
-              onChange={(event) => setNote(event.target.value)}
+              onChange={async (event) => setNote(event.target.value)}
               maxLength={300}
               required
               placeholder="一闪而过的想法，也值得留下…"
@@ -167,7 +176,7 @@ export function Managers({
             <p className="metric-label">按日期排列 · 当前为单次日期记录</p>
             <button
               className="text-button"
-              onClick={() => open({ kind: 'record', record: 'event' })}
+              onClick={async () => open({ kind: 'record', record: 'event' })}
             >
               添加日程
             </button>
@@ -187,15 +196,15 @@ export function Managers({
                   <div className="inline-actions">
                     <button
                       className="text-button"
-                      onClick={() => open({ kind: 'record', record: 'event', id: item.id })}
+                      onClick={async () => open({ kind: 'record', record: 'event', id: item.id })}
                       aria-label={`编辑日程：${item.title}`}
                     >
                       编辑
                     </button>
                     <button
                       className="text-button"
-                      onClick={() =>
-                        mutate((draft) => {
+                      onClick={async () =>
+                        await mutate((draft) => {
                           const value = draft.events.find((entry) => entry.id === item.id);
                           if (value) value.done = !value.done;
                         })
@@ -217,7 +226,7 @@ export function Managers({
             <button
               className="text-button"
               disabled={state.goals.length >= 3}
-              onClick={() => open({ kind: 'record', record: 'goal' })}
+              onClick={async () => open({ kind: 'record', record: 'goal' })}
             >
               添加目标
             </button>
@@ -229,7 +238,7 @@ export function Managers({
                   <strong>{goal.title}</strong>
                   <button
                     className="text-button"
-                    onClick={() => open({ kind: 'record', record: 'goal', id: goal.id })}
+                    onClick={async () => open({ kind: 'record', record: 'goal', id: goal.id })}
                     aria-label={`编辑目标：${goal.title}`}
                   >
                     编辑
@@ -247,7 +256,7 @@ export function Managers({
                   <span>下一步</span>
                   <strong>{goal.next || '还没有填写下一步'}</strong>
                   {goal.next && goal.progress < 100 && (
-                    <button className="text-button" onClick={() => goalTodo(goal.id)}>
+                    <button className="text-button" onClick={async () => goalTodo(goal.id)}>
                       加入待办
                     </button>
                   )}
@@ -272,13 +281,13 @@ export function Managers({
                     <input
                       type="checkbox"
                       checked={task.done}
-                      onChange={(event) => {
+                      onChange={async (event) => {
                         const checked = event.target.checked;
-                        mutate((draft) => {
+                        await mutate((draft) => {
                           const value = draft.tasks.find((item) => item.id === task.id);
                           if (value) {
                             value.done = checked;
-                            if (checked) value.completedAt = TODAY;
+                            if (checked) value.completedAt = completedNow(state);
                             else delete value.completedAt;
                           }
                         });
@@ -320,7 +329,7 @@ export function Managers({
               icon: 'check-list',
               title: '手动记录',
               description: '身体、习惯、餐食、时间投入与账户余额',
-              status: '原型可用',
+              status: '本地可用',
             },
             {
               icon: 'download',
@@ -347,8 +356,8 @@ export function Managers({
             </div>
           ))}
           <p className="content-prose">
-            初始内容全部为示例数据。新增手动记录保存在当前浏览器；没有访问外部账户或健康设备。日期仍以
-            2026-10-14 为原型参考。
+            正式记录与示例、原型记录分开保存。正式空间使用设备本地日期，示例和原型空间固定参考
+            2026-10-14。当前没有连接外部账户或健康设备。
           </p>
         </>
       )}
@@ -360,8 +369,8 @@ export function Managers({
             <div className="settings-actions">
               <button
                 className="secondary-button"
-                onClick={() =>
-                  mutate((draft) => {
+                onClick={async () =>
+                  await mutate((draft) => {
                     draft.theme = 'jarvis';
                   })
                 }
@@ -370,8 +379,8 @@ export function Managers({
               </button>
               <button
                 className="secondary-button"
-                onClick={() =>
-                  mutate((draft) => {
+                onClick={async () =>
+                  await mutate((draft) => {
                     draft.theme = 'midnight';
                   })
                 }
@@ -382,11 +391,14 @@ export function Managers({
           </section>
           <section className="settings-section">
             <h3>记录与产物</h3>
-            <p>记录只保存在当前浏览器和站点地址。导出可保留原型记录与演示产物。</p>
+            <p>
+              记录保存在当前浏览器的
+              IndexedDB，与站点地址绑定。下方导出的是当前空间的展示记录；完整数据库备份与恢复将在下一阶段提供。
+            </p>
             <div className="settings-actions">
               <button
                 className="secondary-button"
-                onClick={() =>
+                onClick={async () =>
                   download(JSON.stringify(state, null, 2), `owner-records-${TODAY}.json`)
                 }
               >
@@ -395,7 +407,7 @@ export function Managers({
               <button className="secondary-button" onClick={exportRaw}>
                 导出本地原始内容
               </button>
-              <button className="secondary-button" onClick={() => open({ kind: 'notes' })}>
+              <button className="secondary-button" onClick={async () => open({ kind: 'notes' })}>
                 查看随手记（{state.notes.length}）
               </button>
             </div>
@@ -404,9 +416,9 @@ export function Managers({
             <h3>卡片顺序</h3>
             <p>拖动卡片右上角的六点按钮，或聚焦按钮后按左右方向键调整顺序。</p>
           </section>
-          <section className="settings-section">
+          <section className="settings-section" hidden={state.runtime?.kind !== 'demo'}>
             <h3>恢复示例</h3>
-            <p>恢复会替换当前地址的记录。确认时会先下载恢复前的备份。</p>
+            <p>仅替换示例体验空间。确认时先下载当前显示记录的副本。</p>
             <button className="text-button form-delete" onClick={reset}>
               {confirmReset ? '确认导出备份并恢复示例（再点一次）' : '恢复初始示例数据'}
             </button>
@@ -424,7 +436,7 @@ export function Managers({
               <div className="settings-actions">
                 <button
                   className="secondary-button"
-                  onClick={() => {
+                  onClick={async () => {
                     if (!navigator.clipboard) {
                       toast('复制不可用，可以导出文件');
                       return;
@@ -439,7 +451,7 @@ export function Managers({
                 </button>
                 <button
                   className="primary-button"
-                  onClick={() =>
+                  onClick={async () =>
                     download(
                       artifact.body,
                       `owner-${artifact.title}-${artifact.date}.md`,

@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { todayOf, completedNow } from '../../domain/selectors';
+import { useRef, useState } from 'react';
 import type { FormEvent, InputHTMLAttributes } from 'react';
-import { TODAY } from '../../data/prototype';
 import { assets, uid } from '../../domain/selectors';
 import { DOMAINS, HABITS } from '../../domain/models';
 import type { Account, DialogRequest, ModuleProps } from '../../domain/models';
@@ -60,6 +60,7 @@ export function RecordEditor({
   request,
   onClose,
 }: ModuleProps & { request: Extract<DialogRequest, { kind: 'record' }>; onClose: () => void }) {
+  const TODAY = todayOf(state);
   const { record: kind, id } = request;
   const eventItem = state.events.find((item) => item.id === id);
   const goal = state.goals.find((item) => item.id === id);
@@ -67,6 +68,8 @@ export function RecordEditor({
     kind === 'wellbeing' ? id || TODAY : kind === 'event' ? eventItem?.date || TODAY : TODAY,
   );
   const [error, setError] = useState('');
+  const saving = useRef(false);
+  const [pending, setPending] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [baseline, setBaseline] = useState(() => captureRecordEditBaseline(state));
   const body = state.daily.find((item) => item.date === date);
@@ -101,7 +104,7 @@ export function RecordEditor({
       setBaseline(captureRecordEditBaseline(state));
     }
   }
-  function submit(event: FormEvent<HTMLFormElement>) {
+  async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = event.currentTarget;
     if (!form.reportValidity()) return;
@@ -156,7 +159,10 @@ export function RecordEditor({
       return;
     }
     let mutationError = '';
-    const ok = mutate((draft) => {
+    if (saving.current) return;
+    saving.current = true;
+    setPending(true);
+    const ok = await mutate((draft) => {
       // Check the newest snapshot held by the storage hook as well as rendered props.
       try {
         assertRecordEditBaseline(baseline, draft, target);
@@ -208,6 +214,9 @@ export function RecordEditor({
             title: str('title'),
             project: str('project'),
             done: str('done') === 'yes',
+            ...(str('done') === 'yes'
+              ? { completedAt: date === TODAY ? completedNow(state) : date }
+              : {}),
           });
       } else if (kind === 'assets') {
         const index = draft.accounts.findIndex(
@@ -239,6 +248,11 @@ export function RecordEditor({
           kind: str('kind'),
           date,
           time: str('time'),
+          timezone: str('time')
+            ? eventItem && eventItem.time === str('time')
+              ? (eventItem.timezone ?? null)
+              : state.runtime?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone
+            : null,
           note: str('note'),
           done: eventItem?.done || false,
         };
@@ -258,10 +272,12 @@ export function RecordEditor({
         else draft.goals.push(value);
       }
     });
+    saving.current = false;
+    setPending(false);
     if (ok) closeSuccess();
     else setError(mutationError || '记录尚未保存。请查看页面提示，草稿已保留。');
   }
-  function remove() {
+  async function remove() {
     const target: RecordEditTarget =
       kind === 'wellbeing' ? { kind, date } : { kind: kind === 'event' ? 'event' : 'goal', id };
     if (!matchesRecordEditBaseline(baseline, state, target)) {
@@ -273,7 +289,10 @@ export function RecordEditor({
       return;
     }
     let mutationError = '';
-    const ok = mutate((draft) => {
+    if (saving.current) return;
+    saving.current = true;
+    setPending(true);
+    const ok = await mutate((draft) => {
       try {
         assertRecordEditBaseline(baseline, draft, target);
       } catch (error) {
@@ -289,6 +308,8 @@ export function RecordEditor({
         });
       }
     });
+    saving.current = false;
+    setPending(false);
     if (ok) {
       toast('已删除记录');
       onClose();
@@ -303,7 +324,13 @@ export function RecordEditor({
           ? !!goal
           : false;
   return (
-    <Modal title={title} eyebrow="A LITTLE UPDATE" onClose={onClose}>
+    <Modal
+      title={title}
+      eyebrow="A LITTLE UPDATE"
+      onClose={() => {
+        if (!saving.current) onClose();
+      }}
+    >
       <form onSubmit={submit}>
         {error && (
           <p role="alert" className="form-error">
@@ -331,7 +358,7 @@ export function RecordEditor({
               <>
                 <div className="field-pair">
                   <Field
-                    label="睡眠时长（小时）"
+                    label="睡眠时长（小时，按起床日期）"
                     name="sleep"
                     type="number"
                     min="0"
@@ -517,6 +544,10 @@ export function RecordEditor({
                   type="time"
                   defaultValue={eventItem?.time || ''}
                 />
+                <p className="field-hint">
+                  新日程按 {state.runtime?.timezone || '设备本地时区'}{' '}
+                  记录本地时间。旧日程未记录时区时继续保留为未知。
+                </p>
                 <Field
                   label="备注（可选）"
                   name="note"
@@ -562,14 +593,19 @@ export function RecordEditor({
             )}
           </div>
           {canDelete && (
-            <button type="button" className="text-button form-delete" onClick={remove}>
+            <button
+              type="button"
+              className="text-button form-delete"
+              onClick={remove}
+              disabled={pending}
+            >
               {confirmDelete ? '确认删除（再点一次）' : '删除这条记录'}
             </button>
           )}
         </div>
         <div className="modal-footer">
           <span>手动记录 · 保存在当前浏览器</span>
-          <button className="primary-button" type="submit">
+          <button className="primary-button" type="submit" disabled={pending}>
             保存记录
           </button>
         </div>

@@ -1,10 +1,10 @@
+import { todayOf, completedNow, completedToday } from '../../domain/selectors';
 import { useRef, useState } from 'react';
 import type { DragEvent, KeyboardEvent } from 'react';
 import { Icon } from '../../components/Icon';
-import { TODAY } from '../../data/prototype';
 import { DOMAINS, HABITS } from '../../domain/models';
 import type { DomainId, ModuleProps, Task } from '../../domain/models';
-import { assets, dateOffset, fmtMoney, money, uid } from '../../domain/selectors';
+import { assets, dateOffset as offsetFrom, fmtMoney, money, uid } from '../../domain/selectors';
 
 function Sparkline({ values }: { values: number[] }) {
   if (!values.length) return null;
@@ -34,6 +34,8 @@ function Sparkline({ values }: { values: number[] }) {
 
 export function Overview(props: ModuleProps) {
   const { state, mutate, open, navigate, toast } = props;
+  const TODAY = todayOf(state);
+  const dateOffset = (offset: number) => offsetFrom(offset, TODAY);
   const [todoTitle, setTodoTitle] = useState('');
   const [addedTask, setAddedTask] = useState<{ id: string; title: string } | null>(null);
   const [dragging, setDragging] = useState<DomainId | null>(null);
@@ -43,15 +45,12 @@ export function Overview(props: ModuleProps) {
   const balance = assets(state);
   const recentOrder: DomainId[] = state.order.filter((id) => id !== 'assets');
   const pending = state.tasks.filter((task) => !task.done && task.date <= TODAY);
-  const completed = state.tasks.filter(
-    (task) =>
-      task.done && (task.completedAt === TODAY || (!task.completedAt && task.date === TODAY)),
-  );
+  const completed = completedToday(state);
   const upcoming = [...state.events]
-    .filter((item) => !item.done && item.date <= dateOffset(7))
+    .filter((item) => !item.done && item.date <= dateOffset(6))
     .sort((a, b) => (a.date + (a.time || '00:00')).localeCompare(b.date + (b.time || '00:00')));
 
-  function moveCard(id: DomainId, destination: number) {
+  async function moveCard(id: DomainId, destination: number) {
     const source = recentOrder.indexOf(id);
     if (
       source < 0 ||
@@ -67,27 +66,28 @@ export function Overview(props: ModuleProps) {
       draft.order = ['assets', ...next];
     });
   }
-  function handleKey(event: KeyboardEvent<HTMLButtonElement>, id: DomainId) {
+  async function handleKey(event: KeyboardEvent<HTMLButtonElement>, id: DomainId) {
     if (!['ArrowLeft', 'ArrowRight'].includes(event.key)) return;
     event.preventDefault();
-    if (moveCard(id, recentOrder.indexOf(id) + (event.key === 'ArrowRight' ? 1 : -1))) {
+    if (await moveCard(id, recentOrder.indexOf(id) + (event.key === 'ArrowRight' ? 1 : -1))) {
       handleRefs.current[id]?.focus();
       toast('卡片顺序已调整');
     }
   }
-  function handleDrop(event: DragEvent<HTMLElement>, target: DomainId) {
+  async function handleDrop(event: DragEvent<HTMLElement>, target: DomainId) {
     event.preventDefault();
-    if (dragging && moveCard(dragging, recentOrder.indexOf(target))) toast('卡片顺序已调整');
+    if (dragging && (await moveCard(dragging, recentOrder.indexOf(target))))
+      toast('卡片顺序已调整');
     setDragging(null);
     setDragOver(null);
   }
-  function toggleTodo(task: Task, done: boolean) {
+  async function toggleTodo(task: Task, done: boolean) {
     if (
-      mutate((draft) => {
+      await mutate((draft) => {
         const item = draft.tasks.find((entry) => entry.id === task.id);
         if (!item) return;
         item.done = done;
-        if (done) item.completedAt = TODAY;
+        if (done) item.completedAt = completedNow(state);
         else delete item.completedAt;
       })
     )
@@ -100,14 +100,14 @@ export function Overview(props: ModuleProps) {
           type="checkbox"
           aria-label={task.title}
           checked={task.done}
-          onChange={(event) => toggleTodo(task, event.target.checked)}
+          onChange={async (event) => toggleTodo(task, event.target.checked)}
         />
         <span className="todo-title">{task.title}</span>
         <small>{task.date < TODAY && !task.done ? '此前未完成' : task.project || '个人待办'}</small>
       </label>
     );
   }
-  function addGoalTodo(id: string) {
+  async function addGoalTodo(id: string) {
     const goal = state.goals.find((item) => item.id === id);
     if (!goal?.next || goal.progress === 100) return;
     if (state.tasks.some((task) => task.goalId === id && task.title === goal.next && !task.done)) {
@@ -123,7 +123,13 @@ export function Overview(props: ModuleProps) {
       goalId: id,
     };
     if (
-      mutate((draft) => {
+      await mutate((draft) => {
+        if (
+          draft.tasks.some(
+            (entry) => entry.goalId === id && entry.title === goal.next && !entry.done,
+          )
+        )
+          throw new Error('这一步已在待办中');
         draft.tasks.unshift(task);
       })
     ) {
@@ -225,7 +231,7 @@ export function Overview(props: ModuleProps) {
             </div>
             <button
               className="text-button"
-              onClick={() => open({ kind: 'record', record: 'wellbeing' })}
+              onClick={async () => open({ kind: 'record', record: 'wellbeing' })}
             >
               {feeling ? '更新' : '记录一下'}
             </button>
@@ -256,10 +262,10 @@ export function Overview(props: ModuleProps) {
                 <input
                   type="checkbox"
                   checked={Boolean(today[habit.id])}
-                  onChange={(event) => {
+                  onChange={async (event) => {
                     const checked = event.target.checked;
                     if (
-                      mutate((draft) => {
+                      await mutate((draft) => {
                         draft.habits[TODAY] = { ...draft.habits[TODAY], [habit.id]: checked };
                       })
                     )
@@ -290,7 +296,7 @@ export function Overview(props: ModuleProps) {
             </div>
             <button
               className="text-button"
-              onClick={() => open({ kind: 'record', record: 'diet' })}
+              onClick={async () => open({ kind: 'record', record: 'diet' })}
             >
               <Icon name="plus" />
               记一餐
@@ -340,7 +346,7 @@ export function Overview(props: ModuleProps) {
             </span>
             <p>{goal?.title ?? '留一个真正想推进的目标'}</p>
           </div>
-          <button className="text-button" onClick={() => open({ kind: 'goals' })}>
+          <button className="text-button" onClick={async () => open({ kind: 'goals' })}>
             {goal ? '管理' : '设置目标'}
           </button>
         </div>
@@ -354,7 +360,7 @@ export function Overview(props: ModuleProps) {
               <span>下一步</span>
               <strong>{goal.next || '还没有填写下一步'}</strong>
               {goal.next && goal.progress < 100 && (
-                <button className="text-button" onClick={() => addGoalTodo(goal.id)}>
+                <button className="text-button" onClick={async () => addGoalTodo(goal.id)}>
                   加入待办
                 </button>
               )}
@@ -371,7 +377,7 @@ export function Overview(props: ModuleProps) {
       <button
         className="card-link"
         aria-label={`查看${domain.name}详情`}
-        onClick={() => navigate(id)}
+        onClick={async () => navigate(id)}
       >
         查看详情 <Icon name="arrow-right" />
       </button>
@@ -413,8 +419,8 @@ export function Overview(props: ModuleProps) {
               <button
                 className="icon-button"
                 aria-label={`${state.hideMoney ? '显示' : '隐藏'}资产金额`}
-                onClick={() =>
-                  mutate((draft) => {
+                onClick={async () =>
+                  await mutate((draft) => {
                     draft.hideMoney = !draft.hideMoney;
                   })
                 }
@@ -452,7 +458,10 @@ export function Overview(props: ModuleProps) {
         <div className="card-content">{content(id)}</div>
         {id !== 'assets' && (
           <div className="card-bottom">
-            <button className="text-button" onClick={() => open({ kind: 'record', record: id })}>
+            <button
+              className="text-button"
+              onClick={async () => open({ kind: 'record', record: id })}
+            >
               <Icon name="plus" />
               {id === 'habits' ? '补记打卡' : '补充记录'}
             </button>
@@ -478,7 +487,7 @@ export function Overview(props: ModuleProps) {
               {pending.length ? `${pending.length} 项待处理` : '今天的清单已完成'}
             </span>
           </div>
-          <button className="card-link" onClick={() => open({ kind: 'todos' })}>
+          <button className="card-link" onClick={async () => open({ kind: 'todos' })}>
             查看全部 <Icon name="arrow-right" />
           </button>
         </div>
@@ -492,14 +501,14 @@ export function Overview(props: ModuleProps) {
               <button
                 className="text-button"
                 aria-label="查看全部日程"
-                onClick={() => open({ kind: 'events' })}
+                onClick={async () => open({ kind: 'events' })}
               >
                 查看全部{state.events.length ? ` · ${state.events.length}` : ''}
               </button>
               <button
                 className="text-button"
                 aria-label="添加日程"
-                onClick={() => open({ kind: 'record', record: 'event' })}
+                onClick={async () => open({ kind: 'record', record: 'event' })}
               >
                 <Icon name="plus" />
                 添加
@@ -518,7 +527,7 @@ export function Overview(props: ModuleProps) {
                     </span>
                     <button
                       className="schedule-title"
-                      onClick={() => open({ kind: 'record', record: 'event', id: item.id })}
+                      onClick={async () => open({ kind: 'record', record: 'event', id: item.id })}
                     >
                       {item.title}
                     </button>
@@ -526,8 +535,8 @@ export function Overview(props: ModuleProps) {
                     <button
                       className="text-button"
                       aria-label={`完成日程：${item.title}`}
-                      onClick={() =>
-                        mutate((draft) => {
+                      onClick={async () =>
+                        await mutate((draft) => {
                           const event = draft.events.find((entry) => entry.id === item.id);
                           if (event) event.done = true;
                         })
@@ -539,13 +548,13 @@ export function Overview(props: ModuleProps) {
                 ))}
               </div>
               {upcoming.length > 3 && (
-                <button className="text-button" onClick={() => open({ kind: 'events' })}>
+                <button className="text-button" onClick={async () => open({ kind: 'events' })}>
                   还有 {upcoming.length - 3} 项，查看全部
                 </button>
               )}
             </>
           ) : (
-            <p className="schedule-empty">未来 7 天暂无安排，可以记下预约、截止日期或纪念日。</p>
+            <p className="schedule-empty">今天起 7 天暂无安排，可以记下预约、截止日期或纪念日。</p>
           )}
         </div>
         <div id="today-todo-list" className="today-todo-list">
@@ -555,7 +564,7 @@ export function Overview(props: ModuleProps) {
             <p className="todo-empty">暂时没有待办，给今天留一点余地。</p>
           )}
           {pending.length > 3 && (
-            <button className="todo-more text-button" onClick={() => open({ kind: 'todos' })}>
+            <button className="todo-more text-button" onClick={async () => open({ kind: 'todos' })}>
               还有 {pending.length - 3} 项待处理，查看全部 <Icon name="arrow-right" />
             </button>
           )}
@@ -568,7 +577,7 @@ export function Overview(props: ModuleProps) {
         )}
         <form
           className="todo-add-form"
-          onSubmit={(event) => {
+          onSubmit={async (event) => {
             event.preventDefault();
             const title = todoTitle.trim();
             if (!title) {
@@ -578,7 +587,7 @@ export function Overview(props: ModuleProps) {
             }
             const task = { id: uid(), title, project: '个人待办', date: TODAY, done: false };
             if (
-              mutate((draft) => {
+              await mutate((draft) => {
                 draft.tasks.unshift(task);
               })
             ) {
@@ -600,7 +609,7 @@ export function Overview(props: ModuleProps) {
             autoComplete="off"
             required
             value={todoTitle}
-            onChange={(event) => {
+            onChange={async (event) => {
               event.target.setCustomValidity('');
               setTodoTitle(event.target.value);
             }}
@@ -614,9 +623,9 @@ export function Overview(props: ModuleProps) {
             <span>已添加：{addedTask.title}</span>
             <button
               className="text-button"
-              onClick={() => {
+              onClick={async () => {
                 if (
-                  mutate((draft) => {
+                  await mutate((draft) => {
                     draft.tasks = draft.tasks.filter((task) => task.id !== addedTask.id);
                   })
                 ) {

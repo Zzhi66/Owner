@@ -53,6 +53,7 @@ export interface CalendarEvent {
   kind: string;
   date: string;
   time: string;
+  timezone?: string | null;
   note: string;
   done: boolean;
 }
@@ -79,6 +80,7 @@ export interface AgentTask {
   title: string;
   context: string;
   status: 'running' | 'completed' | 'interrupted';
+  runExpiresAt?: string;
   date: string;
   artifactId?: string;
 }
@@ -90,6 +92,12 @@ export interface Artifact {
   body: string;
 }
 export interface WorkbenchState {
+  runtime?: {
+    today: string;
+    timezone: string;
+    spaceId: string;
+    kind: 'personal' | 'demo' | 'prototype' | 'legacy';
+  };
   schemaVersion: 1;
   theme: 'jarvis' | 'midnight';
   range: 7 | 30;
@@ -119,7 +127,7 @@ export interface StorageLike {
   getItem(key: string): string | null;
   setItem(key: string, value: string): void;
 }
-export type Mutate = (change: (draft: WorkbenchState) => void) => boolean;
+export type Mutate = (change: (draft: WorkbenchState) => void) => Promise<boolean>;
 export type DialogRequest =
   | { kind: 'record'; record: RecordKind; id?: string }
   | { kind: 'quick' | 'events' | 'goals' | 'settings' | 'sources' | 'todos' | 'notes' }

@@ -3,7 +3,9 @@ import { Icon } from '../components/Icon';
 import { DOMAINS } from '../domain/models';
 import type { DialogRequest, ModuleProps, View } from '../domain/models';
 import { Overview } from '../features/overview/Overview';
-import { usePrototype } from './usePrototype';
+import { useWorkbench } from './useWorkbench';
+import { SpaceControls } from '../features/settings/SpaceControls';
+import { todayOf } from '../domain/selectors';
 
 const DomainDetails = lazy(() =>
   import('../features/details/DomainDetails').then((module) => ({ default: module.DomainDetails })),
@@ -36,7 +38,8 @@ export function App() {
     },
     [],
   );
-  const { state, warning, mutate } = usePrototype(toast);
+  const workbench = useWorkbench(toast);
+  const { state, warning, mutate } = workbench;
   const [view, setView] = useState<View>(viewFromHash);
   const [dialog, setDialog] = useState<DialogRequest | null>(null);
   const [agentOpen, setAgentOpen] = useState(false);
@@ -110,6 +113,21 @@ export function App() {
       ('id' in dialog ? dialog.id || '' : '') +
       (dialog.kind === 'record' ? dialog.record : '')
     : '';
+  if (!workbench.ready) {
+    return (
+      <div className="app-shell">
+        <p className="empty-line" role="status">
+          正在打开本地记录…
+        </p>
+        {warning && (
+          <p className="storage-warning" role="alert">
+            {warning}
+          </p>
+        )}
+        <SpaceControls {...workbench} disabled={false} />
+      </div>
+    );
+  }
   return (
     <>
       <a
@@ -175,7 +193,11 @@ export function App() {
           <div className="topbar-actions">
             <span className="prototype-badge">
               <i />
-              交互原型 · 示例与手动记录
+              {state.runtime?.kind === 'personal'
+                ? '正式记录 · 本地存储'
+                : state.runtime?.kind === 'demo'
+                  ? '示例体验 · 独立空间'
+                  : '原型记录 · 固定日期'}
             </span>
             <button
               className="icon-button"
@@ -193,6 +215,10 @@ export function App() {
             </button>
           </div>
         </header>
+        <SpaceControls
+          {...workbench}
+          disabled={!!dialog || state.agentTasks.some((task) => task.status === 'running')}
+        />
         {warning && (
           <div className="storage-warning" role="alert">
             <p>{warning}</p>
@@ -219,7 +245,10 @@ export function App() {
                 <Icon name="plus" />
                 快速记录
               </button>
-              <div className="eyebrow">示例日期 · 2026 年 10 月 14 日 · 星期三</div>
+              <div className="eyebrow">
+                {state.runtime?.kind === 'personal' ? '本地日期' : '固定参考日期'} ·{' '}
+                {todayOf(state)} · {state.runtime?.timezone}
+              </div>
             </div>
           </div>
           <div className="core-display" aria-hidden="true">
@@ -239,14 +268,20 @@ export function App() {
             <span>
               <i /> 本地工作台
             </span>
-            <span>手动记录 + 示例数据</span>
+            <span>
+              {state.runtime?.kind === 'personal'
+                ? '个人手动记录'
+                : state.runtime?.kind === 'demo'
+                  ? '独立示例数据'
+                  : '保留旧日期与来源'}
+            </span>
             <span>OWNER / HUD v1.0</span>
           </div>
         </section>
         <main className="workbench" id="overview">
           <div className="personal-area">
             {view === 'overview' ? (
-              <Overview {...moduleProps} />
+              <Overview key={state.runtime?.spaceId} {...moduleProps} />
             ) : (
               <Suspense
                 fallback={
@@ -276,7 +311,12 @@ export function App() {
             </p>
           }
         >
-          <AgentWorkspace {...moduleProps} isOpen={agentOpen} onClose={closeAgent} />
+          <AgentWorkspace
+            key={state.runtime?.spaceId}
+            {...moduleProps}
+            isOpen={agentOpen}
+            onClose={closeAgent}
+          />
         </Suspense>
       )}
       <button

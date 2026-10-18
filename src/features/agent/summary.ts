@@ -1,8 +1,8 @@
-import { TODAY } from '../../data/prototype';
+import { todayOf } from '../../domain/selectors';
 import { DOMAINS, HABITS, type View, type WorkbenchState } from '../../domain/models';
 import {
   assets,
-  dateOffset,
+  dateOffset as offsetFrom,
   focusHours,
   fmtMoney,
   habitCounts,
@@ -24,7 +24,9 @@ export function contextName(context: View): string {
 
 /** Deterministic local demonstration; this function never calls a model or external service. */
 export function createSummary(state: WorkbenchState, context: View, prompt: string): AgentSummary {
-  const daily = periodRecords(state.daily, state.range);
+  const TODAY = todayOf(state);
+  const dateOffset = (offset: number) => offsetFrom(offset, TODAY);
+  const daily = periodRecords(state.daily, state.range, TODAY);
   const sleepRecords = daily.filter(
     (record): record is typeof record & { sleep: number } =>
       record.sleep != null && Number.isFinite(record.sleep),
@@ -34,7 +36,8 @@ export function createSummary(state: WorkbenchState, context: View, prompt: stri
     : null;
   const balance = assets(state);
   const habits = habitCounts(state, state.range).reduce((sum, record) => sum + record.count, 0);
-  const mealDays = new Set(periodRecords(state.meals, state.range).map((meal) => meal.date)).size;
+  const mealDays = new Set(periodRecords(state.meals, state.range, TODAY).map((meal) => meal.date))
+    .size;
   const pending = state.tasks.filter((task) => !task.done);
   const isTasks = /待办|任务/.test(prompt);
   const isMissing = /缺|空/.test(prompt);
@@ -94,7 +97,7 @@ export function createSummary(state: WorkbenchState, context: View, prompt: stri
 
   const name = contextName(context);
   const body =
-    `# ${title}\n\n日期：${TODAY}\n上下文：${name} · 近 ${state.range} 天\n来源：本地原型中的示例与手动记录\n生成方式：本地演示规则，未连接 AI 模型\n\n` +
+    `# ${title}\n\n日期：${TODAY}\n上下文：${name} · 近 ${state.range} 天\n来源：当前${state.runtime?.kind === 'personal' ? '正式记录' : state.runtime?.kind === 'demo' ? '示例体验' : '原型记录'}空间\n生成方式：本地演示规则，未连接 AI 模型\n\n` +
     sections.join('\n\n');
   return {
     title,

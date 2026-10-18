@@ -1,11 +1,11 @@
+import { todayOf } from '../../domain/selectors';
 import type { ReactNode } from 'react';
 import { Icon } from '../../components/Icon';
-import { TODAY } from '../../data/prototype';
 import { DOMAINS, HABITS } from '../../domain/models';
 import type { DomainId, ModuleProps } from '../../domain/models';
 import {
   assets,
-  dateOffset,
+  dateOffset as offsetFrom,
   focusHours,
   habitCounts,
   money,
@@ -28,6 +28,8 @@ export function DomainDetails({
   onAgent,
   view,
 }: ModuleProps & { view: DomainId }) {
+  const TODAY = todayOf(state);
+  const dateOffset = (offset: number) => offsetFrom(offset, TODAY);
   const domain = DOMAINS.find((item) => item.id === view);
   if (!domain) return null;
   const dates = Array.from({ length: state.range }, (_, index) =>
@@ -36,7 +38,7 @@ export function DomainDetails({
   let content: ReactNode;
   let footer: ReactNode;
   if (view === 'body') {
-    const daily = periodRecords(state.daily, state.range);
+    const daily = periodRecords(state.daily, state.range, TODAY);
     const metric = state.bodyMetric;
     const { label, unit } = bodyLabels[metric];
     const values = daily.flatMap((entry) => {
@@ -158,11 +160,11 @@ export function DomainDetails({
     footer = (
       <>
         <Icon name="leaf" />
-        每天 3 项示例习惯 · 可在首页完成今日打卡
+        每天 3 项默认习惯 · 可在首页完成今日打卡
       </>
     );
   } else if (view === 'diet') {
-    const records = periodRecords(state.meals, state.range).sort((a, b) =>
+    const records = periodRecords(state.meals, state.range, TODAY).sort((a, b) =>
       b.date.localeCompare(a.date),
     );
     const recordedDays = new Set(records.map((record) => record.date)).size;
@@ -207,7 +209,7 @@ export function DomainDetails({
       </>
     );
   } else if (view === 'work') {
-    const sessions = periodRecords(state.sessions, state.range);
+    const sessions = periodRecords(state.sessions, state.range, TODAY);
     const records = dates.map((date) => {
       const entries = sessions.filter((session) => session.date === date);
       return {
@@ -311,7 +313,9 @@ export function DomainDetails({
           )}
         </div>
         <div className="asset-history">
-          <p className="metric-label">净资产历史 · 近 30 天</p>
+          <p className="metric-label">
+            {state.runtime?.kind === 'personal' ? '手动净资产汇总' : '原型历史估值'} · 近 30 天
+          </p>
           {state.hideMoney ? (
             <div className="empty-line">金额已隐藏</div>
           ) : (

@@ -1,6 +1,6 @@
+import { todayOf } from '../../domain/selectors';
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { Icon } from '../../components/Icon';
-import { TODAY } from '../../data/prototype';
 import type { ModuleProps, WorkbenchState } from '../../domain/models';
 import { uid } from '../../domain/selectors';
 import { contextName, createSummary } from './summary';
@@ -17,7 +17,7 @@ const suggestions = [
   { icon: 'search', label: '查看缺失记录', prompt: '查看这些记录还缺少什么' },
 ];
 
-function downloadArtifact(title: string, body: string): void {
+function downloadArtifact(title: string, body: string, TODAY: string): void {
   const url = URL.createObjectURL(new Blob([body], { type: 'text/markdown;charset=utf-8' }));
   const link = document.createElement('a');
   link.href = url;
@@ -34,6 +34,7 @@ export function AgentWorkspace({
   isOpen,
   onClose,
 }: ModuleProps & { isOpen: boolean; onClose: () => void }) {
+  const TODAY = todayOf(state);
   const [prompt, setPrompt] = useState('');
   const [busy, setBusy] = useState(false);
   const [showInfo, setShowInfo] = useState(false);
@@ -91,7 +92,7 @@ export function AgentWorkspace({
     return () => window.removeEventListener('keydown', handleEscape);
   }, [isOpen, onClose]);
 
-  function sendPrompt(value: string): void {
+  async function sendPrompt(value: string): Promise<void> {
     const trimmed = value.trim();
     if (busyRef.current || !trimmed) return;
     // Lock before persisting or rendering so Enter and a pointer event cannot start two runs.
@@ -99,13 +100,14 @@ export function AgentWorkspace({
     const result = createSummary(state, state.context, trimmed);
     const taskId = uid();
     const taskContext = `${result.contextName} · 近 ${state.range} 天`;
-    const saved = mutate((draft) => {
+    const saved = await mutate((draft) => {
       draft.agentTab = 'chat';
       draft.agentTasks.push({
         id: taskId,
         title: result.title,
         context: taskContext,
         status: 'running',
+        runExpiresAt: new Date(Date.now() + 15000).toISOString(),
         date: TODAY,
       });
       draft.messages.push({ id: uid(), role: 'user', text: trimmed });
@@ -117,10 +119,10 @@ export function AgentWorkspace({
     activeTask.current = taskId;
     setPrompt('');
     setBusy(true);
-    timer.current = window.setTimeout(() => {
+    timer.current = window.setTimeout(async () => {
       const artifactId = uid();
       let completed = false;
-      const persisted = mutateRef.current((draft) => {
+      const persisted = await mutateRef.current((draft) => {
         const task = draft.agentTasks.find((entry) => entry.id === taskId);
         // A reset, reload or cancellation must not produce an orphaned result.
         if (task?.status !== 'running') return;
@@ -336,7 +338,7 @@ export function AgentWorkspace({
           {busy && (
             <div className="typing">
               <i />
-              正在整理本地原型记录…
+              正在整理当前空间记录…
             </div>
           )}
         </div>
@@ -383,7 +385,7 @@ export function AgentWorkspace({
           <div className="composer-footer">
             <span>
               <Icon name="shield" />
-              基于本地原型记录
+              基于当前空间记录
             </span>
             <button
               className="send-button"
@@ -417,7 +419,7 @@ export function AgentWorkspace({
               <p>上下文：{task.context} · 本地演示流程</p>
               <div className="task-step">
                 <Icon name="check" />
-                读取选中的原型记录
+                读取选中的空间记录
               </div>
               <div className="task-step">
                 <Icon name={task.status === 'completed' ? 'check' : 'clock'} />
@@ -474,7 +476,7 @@ export function AgentWorkspace({
                 </button>
                 <button
                   className="text-button"
-                  onClick={() => downloadArtifact(artifact.title, artifact.body)}
+                  onClick={() => downloadArtifact(artifact.title, artifact.body, artifact.date)}
                 >
                   <Icon name="download" />
                   导出
