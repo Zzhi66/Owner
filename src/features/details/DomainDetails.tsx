@@ -1,7 +1,7 @@
 import { todayOf } from '../../domain/selectors';
 import type { ReactNode } from 'react';
 import { Icon } from '../../components/Icon';
-import { DOMAINS, HABITS } from '../../domain/models';
+import { DOMAINS } from '../../domain/models';
 import type { DomainId, ModuleProps } from '../../domain/models';
 import {
   assets,
@@ -131,7 +131,8 @@ export function DomainDetails({
         {dateOffset(1 - state.range)
           .slice(5)
           .replace('-', '/')}
-        —10/14 · 有效记录 {values.length}/{state.range} 天 · 原始数值展示
+        —{TODAY.slice(5).replace('-', '/')} · 有效记录 {values.length}/{state.range} 天 ·
+        原始数值展示
       </>
     );
   } else if (view === 'habits') {
@@ -141,7 +142,7 @@ export function DomainDetails({
       <>
         <div className="chart-meta">
           <strong>
-            {completed} / {state.range * HABITS.length}
+            {completed} / {counts.reduce((sum, entry) => sum + entry.planned, 0)}
           </strong>
           <span>已完成 / 自设计划次数</span>
         </div>
@@ -150,7 +151,7 @@ export function DomainDetails({
             <div className={`heatmap-cell ${entry.count ? 'done' : ''}`} key={entry.date}>
               <span>{entry.date.slice(5).replace('-', '/')}</span>
               <strong>
-                {entry.count}/{HABITS.length}
+                {entry.count}/{entry.planned}
               </strong>
             </div>
           ))}
@@ -160,7 +161,7 @@ export function DomainDetails({
     footer = (
       <>
         <Icon name="leaf" />
-        每天 3 项默认习惯 · 可在首页完成今日打卡
+        按各日期的启用计划统计 · 停用后保留历史打卡
       </>
     );
   } else if (view === 'diet') {
@@ -374,6 +375,21 @@ export function DomainDetails({
               <Icon name="plus" />
             </button>
           </div>
+        </div>
+        <div className="p3-tools">
+          <button className="text-button" onClick={() => open({ kind: 'history', domain: view })}>
+            查看与管理全部记录
+          </button>
+          {view === 'habits' && (
+            <button className="text-button" onClick={() => open({ kind: 'habit-settings' })}>
+              配置习惯
+            </button>
+          )}
+          {view === 'assets' && (
+            <button className="text-button" onClick={() => open({ kind: 'snapshots' })}>
+              查看账户快照
+            </button>
+          )}
         </div>
         <div id="detail-content">{content}</div>
         <div className="detail-footer">{footer}</div>

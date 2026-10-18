@@ -4,6 +4,7 @@ import { db, type Row, type Collection } from '../../data/indexeddb/database';
 import { HABITS } from '../../domain/models';
 function describeRecord(table: Collection, row: Row, reveal: boolean): string {
   const value = row.value;
+  if (table === 'habitDefinitions') return `习惯配置：${value.name}（保留启用日期）`;
   if (table === 'daily')
     return `睡眠 ${value.sleep ?? '未记录'} 小时 · 体重 ${value.weight ?? '未记录'} kg · 步数 ${value.steps ?? '未记录'}${value.note ? ` · ${value.note}` : ''}`;
   if (table === 'wellbeing') return `${value.mood} · 精力 ${value.energy}/5 · ${value.reason}`;
@@ -111,6 +112,7 @@ export function CopyRecords({ sourceId, onClose }: { sourceId: string; onClose: 
         </label>
       </div>
       <p className="field-hint">
+        自定义习惯的打卡会同时复制缺失的习惯配置，已有配置保持不变。
         工作记录会同时复制关联目标并重建关联。原型历史净资产估值、Agent
         对话、产物和随手记保留在原型空间，不在此入口复制。
       </p>

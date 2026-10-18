@@ -195,6 +195,8 @@ export function useWorkbench(notify: (message: string) => void) {
       today: space?.kind === 'personal' ? today : PROTOTYPE_DATE,
       timezone: createDateService().timezone,
       spaceId: active,
+      spaceName: space?.name || '旧记录预览',
+      revision: space?.revision,
       kind: active === 'legacy' ? 'legacy' : space?.kind || 'personal',
     },
   };

@@ -2,14 +2,23 @@ import type { WorkbenchState } from './models';
 
 export type RecordEditTarget =
   | { kind: 'body' | 'wellbeing'; date: string }
-  | { kind: 'event' | 'goal'; id?: string }
-  | { kind: 'assets'; name: string; type: string }
+  | { kind: 'event' | 'goal' | 'task' | 'note'; id?: string }
+  | { kind: 'assets'; id?: string; name: string; type: string }
   | { kind: 'habits'; date: string; habit: string }
-  | { kind: 'diet' | 'work' };
+  | { kind: 'diet' | 'work'; id?: string };
 
 export type RecordEditBaseline = Pick<
   WorkbenchState,
-  'daily' | 'wellbeing' | 'events' | 'goals' | 'accounts' | 'habits'
+  | 'daily'
+  | 'wellbeing'
+  | 'events'
+  | 'goals'
+  | 'accounts'
+  | 'habits'
+  | 'meals'
+  | 'sessions'
+  | 'tasks'
+  | 'notes'
 >;
 
 export const RECORD_EDIT_CONFLICT =
@@ -24,6 +33,10 @@ export function captureRecordEditBaseline(state: WorkbenchState): RecordEditBase
     goals: state.goals,
     accounts: state.accounts,
     habits: state.habits,
+    meals: state.meals,
+    sessions: state.sessions,
+    tasks: state.tasks,
+    notes: state.notes,
   });
 }
 
@@ -38,14 +51,21 @@ function targetValue(state: RecordEditBaseline, target: RecordEditTarget): unkno
     case 'goal':
       return target.id ? state.goals.filter((record) => record.id === target.id) : null;
     case 'assets':
-      return state.accounts.filter(
-        (record) => record.name === target.name && record.type === target.type,
+      return state.accounts.filter((record) =>
+        target.id
+          ? record.id === target.id
+          : record.name === target.name && record.type === target.type,
       );
     case 'habits':
       return state.habits[target.date]?.[target.habit];
-    default:
-      // Meals and sessions are additions, rather than replacements of existing records.
-      return null;
+    case 'diet':
+      return target.id ? state.meals.filter((record) => record.id === target.id) : null;
+    case 'work':
+      return target.id ? state.sessions.filter((record) => record.id === target.id) : null;
+    case 'task':
+      return target.id ? state.tasks.filter((record) => record.id === target.id) : null;
+    case 'note':
+      return target.id ? state.notes.filter((record) => record.id === target.id) : null;
   }
 }
 
@@ -61,6 +81,18 @@ export function matchesRecordEditBaseline(
   current: WorkbenchState,
   target: RecordEditTarget,
 ): boolean {
+  if ('id' in target && target.id) {
+    const tables = {
+      diet: 'meals',
+      work: 'sessions',
+      assets: 'accounts',
+      event: 'events',
+      goal: 'goals',
+      task: 'tasks',
+      note: 'notes',
+    } as const;
+    if (!current[tables[target.kind]].some((record) => record.id === target.id)) return false;
+  }
   if (
     target.kind === 'event' &&
     target.id &&

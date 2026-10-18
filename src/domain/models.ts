@@ -1,6 +1,11 @@
 export type DomainId = 'body' | 'habits' | 'diet' | 'work' | 'assets';
 export type View = 'overview' | DomainId;
-export type RecordKind = DomainId | 'wellbeing' | 'event' | 'goal';
+export type RecordKind = DomainId | 'wellbeing' | 'event' | 'goal' | 'task' | 'note';
+export interface HabitDefinition {
+  id: string;
+  name: string;
+  periods: { from: string; to?: string }[];
+}
 export interface DailyRecord {
   date: string;
   sleep: number | null;
@@ -96,6 +101,8 @@ export interface WorkbenchState {
     today: string;
     timezone: string;
     spaceId: string;
+    spaceName?: string;
+    revision?: number;
     kind: 'personal' | 'demo' | 'prototype' | 'legacy';
   };
   schemaVersion: 1;
@@ -111,6 +118,7 @@ export interface WorkbenchState {
   meals: Meal[];
   sessions: FocusSession[];
   habits: Record<string, Record<string, boolean>>;
+  habitDefinitions?: HabitDefinition[];
   accounts: Account[];
   assetHistory: { date: string; value: number }[];
   tasks: Task[];
@@ -129,7 +137,12 @@ export interface StorageLike {
 }
 export type Mutate = (change: (draft: WorkbenchState) => void) => Promise<boolean>;
 export type DialogRequest =
-  | { kind: 'record'; record: RecordKind; id?: string }
+  | { kind: 'record'; record: RecordKind; id?: string; habitId?: string }
+  | { kind: 'history'; domain: DomainId }
+  | { kind: 'backup' }
+  | { kind: 'trash' }
+  | { kind: 'habit-settings' }
+  | { kind: 'snapshots' }
   | { kind: 'quick' | 'events' | 'goals' | 'settings' | 'sources' | 'todos' | 'notes' }
   | { kind: 'artifact'; id: string };
 export interface ModuleProps {

@@ -1,3 +1,5 @@
+import { db } from '../../data/indexeddb/database';
+import { resetDemo } from '../../data/backup/service';
 import { todayOf, completedNow } from '../../domain/selectors';
 import { useState } from 'react';
 import type { FormEvent } from 'react';
@@ -5,7 +7,7 @@ import { Modal } from '../../components/Modal';
 import { Icon } from '../../components/Icon';
 import { DOMAINS } from '../../domain/models';
 import type { DialogRequest, ModuleProps } from '../../domain/models';
-import { createInitialState, STORAGE_KEY } from '../../data/prototype';
+import { STORAGE_KEY } from '../../data/prototype';
 import { uid } from '../../domain/selectors';
 import { download } from '../../shared/download';
 
@@ -16,7 +18,13 @@ export function Managers({
   toast,
   request,
   onClose,
-}: ModuleProps & { request: Exclude<DialogRequest, { kind: 'record' }>; onClose: () => void }) {
+}: ModuleProps & {
+  request: Exclude<
+    DialogRequest,
+    { kind: 'record' | 'history' | 'backup' | 'trash' | 'habit-settings' | 'snapshots' }
+  >;
+  onClose: () => void;
+}) {
   const TODAY = todayOf(state);
   const [confirmReset, setConfirmReset] = useState(false);
   const [note, setNote] = useState('');
@@ -92,14 +100,12 @@ export function Managers({
       setConfirmReset(true);
       return;
     }
-    download(JSON.stringify(state, null, 2), `owner-records-before-reset-${TODAY}.json`);
-    if (
-      await mutate((draft) => {
-        Object.assign(draft, { ...createInitialState(), theme: draft.theme });
-      })
-    ) {
-      toast('已导出恢复前备份，并恢复示例');
+    try {
+      await resetDemo(db, state.runtime.spaceId, state.runtime.revision ?? -1);
+      toast('示例已恢复，原内容已保留为恢复点');
       onClose();
+    } catch (error) {
+      toast(error instanceof Error ? error.message : '恢复未完成，原记录保持不变');
     }
   }
   return (
@@ -272,12 +278,15 @@ export function Managers({
           <p className="metric-label todo-dialog-hint">
             今日待办包含今天及此前未完成的事项；习惯打卡单独记录。
           </p>
+          <button className="text-button" onClick={() => open({ kind: 'record', record: 'task' })}>
+            添加待办
+          </button>
           <div className="record-list">
             {[...state.tasks]
               .sort((a, b) => Number(a.done) - Number(b.done))
               .map((task) => (
-                <label className="record-row" key={task.id}>
-                  <span className="habit-row">
+                <div className="record-row" key={task.id}>
+                  <label className="habit-row">
                     <input
                       type="checkbox"
                       checked={task.done}
@@ -299,9 +308,15 @@ export function Managers({
                         {task.project} · {task.date}
                       </span>
                     </span>
-                  </span>
+                  </label>
                   <span className="row-meta">{task.done ? '已完成' : '待处理'}</span>
-                </label>
+                  <button
+                    className="text-button"
+                    onClick={() => open({ kind: 'record', record: 'task', id: task.id })}
+                  >
+                    编辑
+                  </button>
+                </div>
               ))}
           </div>
           {!state.tasks.length && <p className="empty-line">还没有待办，从总览添加第一项吧。</p>}
@@ -315,6 +330,12 @@ export function Managers({
                 <span className="row-title">{item.text}</span>
                 <span className="row-meta">{item.date} · 手动记录</span>
               </div>
+              <button
+                className="text-button"
+                onClick={() => open({ kind: 'record', record: 'note', id: item.id })}
+              >
+                编辑
+              </button>
             </div>
           ))}
           {!state.notes.length && (
@@ -393,9 +414,18 @@ export function Managers({
             <h3>记录与产物</h3>
             <p>
               记录保存在当前浏览器的
-              IndexedDB，与站点地址绑定。下方导出的是当前空间的展示记录；完整数据库备份与恢复将在下一阶段提供。
+              IndexedDB，与站点地址绑定。完整备份包含所有空间与历史快照，当前显示记录导出仅供查看。
             </p>
             <div className="settings-actions">
+              <button className="primary-button" onClick={() => open({ kind: 'backup' })}>
+                备份与恢复
+              </button>
+              <button className="secondary-button" onClick={() => open({ kind: 'trash' })}>
+                打开回收站
+              </button>
+              <button className="secondary-button" onClick={() => open({ kind: 'habit-settings' })}>
+                配置习惯
+              </button>
               <button
                 className="secondary-button"
                 onClick={async () =>
@@ -418,9 +448,9 @@ export function Managers({
           </section>
           <section className="settings-section" hidden={state.runtime?.kind !== 'demo'}>
             <h3>恢复示例</h3>
-            <p>仅替换示例体验空间。确认时先下载当前显示记录的副本。</p>
+            <p>仅替换示例体验空间。确认时先建立恢复点，可在备份与恢复中回退。</p>
             <button className="text-button form-delete" onClick={reset}>
-              {confirmReset ? '确认导出备份并恢复示例（再点一次）' : '恢复初始示例数据'}
+              {confirmReset ? '确认建立恢复点并恢复示例（再点一次）' : '恢复初始示例数据'}
             </button>
           </section>
         </>

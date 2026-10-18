@@ -78,6 +78,20 @@ export async function previewCopy(
     }
     // Related goals travel with selected tasks, even when their due date is outside the filter.
     for (const item of [...candidates]) {
+      if (item.table === 'habitLogs') {
+        const habitId = String(item.row.value.habitId);
+        if (
+          !(await database.records('habitDefinitions').get(['personal', habitId])) &&
+          !candidates.some(
+            (other) => other.table === 'habitDefinitions' && other.row.id === habitId,
+          )
+        ) {
+          const definition = await database.records('habitDefinitions').get([sourceId, habitId]);
+          if (definition && (selection.includeUnknown || definition.source !== '未知'))
+            candidates.push({ table: 'habitDefinitions', row: definition });
+          else conflicts.push('关联习惯配置缺失或来源不明，请先在原型空间核对或允许未知来源');
+        }
+      }
       if (item.table !== 'tasks' || !item.row.value.goalId) continue;
       const goalId = String(item.row.value.goalId);
       if (goalMappings[goalId]) continue;
@@ -146,7 +160,7 @@ export async function copyToPersonal(
       preview.candidates.map(({ table, row }) => [`${table}:${row.id}`, uid()]),
     );
     const destination = (table: Collection, row: Row) =>
-      ['daily', 'wellbeing', 'habitLogs'].includes(table)
+      ['daily', 'wellbeing', 'habitLogs', 'habitDefinitions'].includes(table)
         ? row.id
         : idMap.get(`${table}:${row.id}`)!;
     await commitChange(database, 'personal', preview.targetRevision, (draft) => {

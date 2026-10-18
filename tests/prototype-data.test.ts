@@ -182,7 +182,7 @@ describe('fixed-date statistics', () => {
     state.habits = { [TODAY]: { read: true, move: false, log: true, custom: true } };
     expect(focusHours(state, 7)).toBe(1.5);
     expect(habitCounts(state, 7)).toHaveLength(7);
-    expect(habitCounts(state, 7).at(-1)).toEqual({ date: TODAY, count: 2 });
+    expect(habitCounts(state, 7).at(-1)).toEqual({ date: TODAY, count: 2, planned: 3 });
     expect(
       habitCounts(state, 7)
         .slice(0, -1)

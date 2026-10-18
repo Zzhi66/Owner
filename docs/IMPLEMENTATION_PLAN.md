@@ -2,7 +2,7 @@
 
 日期：2026-10-16
 
-状态：P0 已完成，P1 已实现，P2 日期与存储已实施，验证范围见 [P2 记录](P2_DATE_STORAGE.md)；进度见 [实施清单](ROADMAP.md) 与 [P1 记录](P1_REACT_MIGRATION.md)
+状态：P0 已完成，P1 已实现，P2 与 P3 已实施，验证范围见 [P2 记录](P2_DATE_STORAGE.md) 和 [P3 记录](P3_RECORDS_BACKUP.md)；进度见 [实施清单](ROADMAP.md) 与 [P1 记录](P1_REACT_MIGRATION.md)
 
 基线：Git 初始提交 `8472332`、`dist/` 中的可运行原型及 [HUD 总览截图](../reference/owner-jarvis-overview.jpg)
 

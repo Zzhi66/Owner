@@ -1,5 +1,6 @@
-import { HABITS, type WorkbenchState } from './models';
+import { type WorkbenchState } from './models';
 import { addDays, completionDate, PROTOTYPE_DATE } from '../shared/date/service';
+import { activeHabits } from './habits';
 
 export const todayOf = (state: WorkbenchState) => state.runtime?.today ?? PROTOTYPE_DATE;
 export const timezoneOf = (state: WorkbenchState) => state.runtime?.timezone ?? 'UTC';
@@ -47,12 +48,13 @@ export function focusHours(state: WorkbenchState, range: number): number {
 export function habitCounts(
   state: WorkbenchState,
   range: number,
-): { date: string; count: number }[] {
+): { date: string; count: number; planned: number }[] {
   return Array.from({ length: range }, (_, index) =>
     dateOffset(index + 1 - range, todayOf(state)),
   ).map((date) => ({
     date,
-    count: HABITS.filter((habit) => state.habits[date]?.[habit.id]).length,
+    count: activeHabits(state, date).filter((habit) => state.habits[date]?.[habit.id]).length,
+    planned: activeHabits(state, date).length,
   }));
 }
 

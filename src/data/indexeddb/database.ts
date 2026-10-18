@@ -1,8 +1,10 @@
 import Dexie, { type Table } from 'dexie';
-import { HABITS, type WorkbenchState } from '../../domain/models';
+import { type WorkbenchState } from '../../domain/models';
 import { workbenchSchema } from '../../domain/schemas';
 import { createInitialState } from '../prototype';
 import { uid } from '../../domain/selectors';
+import { definitionsOf } from '../../domain/habits';
+import type { HabitDefinition } from '../../domain/models';
 
 export type SpaceKind = 'personal' | 'demo' | 'prototype';
 export interface Space {
@@ -48,12 +50,45 @@ export interface Migration {
   spaceId: string;
   raw: string;
   importedAt: string;
+  originalId?: string;
+}
+export interface DeletedRow {
+  table: Collection;
+  row: Row;
+}
+export interface TrashEntry {
+  id: string;
+  spaceId: string;
+  deletedAt: string;
+  rows: DeletedRow[];
+}
+export interface SpaceSnapshot {
+  space: Space;
+  records: Record<Collection, Row[]>;
+  accountSnapshots: Row[];
+  migrations: Migration[];
+  trash: TrashEntry[];
+}
+export interface RecoveryPoint {
+  id: string;
+  spaceId: string;
+  createdAt: string;
+  label: string;
+  snapshot: SpaceSnapshot;
+}
+export interface LegacyArchive {
+  id: string;
+  raw: string;
+  capturedAt: string;
 }
 export class OwnerDatabase extends Dexie {
   spaces!: Table<Space, string>;
   migrations!: Table<Migration, string>;
   metadata!: Table<{ key: string; value: string }, string>;
   accountSnapshots!: Table<Row, [string, string]>;
+  trash!: Table<TrashEntry, string>;
+  recoveryPoints!: Table<RecoveryPoint, string>;
+  legacyArchives!: Table<LegacyArchive, string>;
   constructor(name = 'owner.workbench.v2') {
     super(name);
     const entityIndex = '[spaceId+id], spaceId, [spaceId+date]';
@@ -64,6 +99,17 @@ export class OwnerDatabase extends Dexie {
       accountSnapshots: entityIndex,
       ...Object.fromEntries(collections.map((name) => [name, entityIndex])),
     });
+    this.version(2)
+      .stores({ trash: 'id, spaceId, deletedAt', recoveryPoints: 'id, spaceId, createdAt' })
+      .upgrade(async (transaction) => {
+        await transaction
+          .table('habitDefinitions')
+          .toCollection()
+          .modify((row: Row) => {
+            if (!Array.isArray(row.value.periods)) row.value.periods = [{ from: '0001-01-01' }];
+          });
+      });
+    this.version(3).stores({ legacyArchives: 'id, capturedAt' });
   }
   records(name: Collection): Table<Row, [string, string]> {
     return this.table(name);
@@ -112,7 +158,7 @@ function valuesOf(
       value: { ...value },
     }));
   if (name === 'habitDefinitions')
-    return HABITS.map((value) => ({ id: value.id, date: '', value }));
+    return definitionsOf(state).map((value) => ({ id: value.id, date: '', value: { ...value } }));
   if (name === 'habitLogs')
     return Object.entries(state.habits).flatMap(([date, logs]) =>
       Object.entries(logs).map(([habitId, done]) => ({
@@ -162,49 +208,61 @@ export function validateState(state: WorkbenchState) {
   )
     throw new Error('记录引用了不存在的 Agent 产物');
 }
+export function projectSpace(space: Space, records: Record<Collection, Row[]>): WorkbenchState {
+  const state = { ...structuredClone(space.base), habits: {}, wellbeing: {} } as WorkbenchState;
+  for (const name of collections) {
+    const rows = [...records[name]].sort((a, b) => a.position - b.position);
+    if (name === 'habitDefinitions') {
+      state.habitDefinitions = rows.map(
+        (row) => structuredClone(row.value) as unknown as HabitDefinition,
+      );
+      continue;
+    }
+    if (name === 'habitLogs') {
+      for (const row of rows) {
+        state.habits[row.date] ??= {};
+        state.habits[row.date]![String(row.value.habitId)] = Boolean(row.value.done);
+      }
+    } else if (name === 'wellbeing')
+      state.wellbeing = Object.fromEntries(
+        rows.map((row) => [row.date, structuredClone(row.value)]),
+      ) as unknown as WorkbenchState['wellbeing'];
+    else
+      state[name] = rows.map((row) => {
+        const value = structuredClone(row.value);
+        if (name === 'accounts') {
+          value.amount = Number(value.amountMinor) / 100;
+          delete value.amountMinor;
+          delete value.currency;
+        }
+        if (name === 'assetHistory') {
+          value.value = Number(value.valueMinor) / 100;
+          delete value.valueMinor;
+          delete value.valuationKind;
+        }
+        return value;
+      }) as never;
+  }
+  for (const id of new Set(Object.values(state.habits).flatMap((logs) => Object.keys(logs)))) {
+    if (!state.habitDefinitions?.some((habit) => habit.id === id))
+      state.habitDefinitions?.push({ id, name: '旧习惯：' + id.slice(0, 60), periods: [] });
+  }
+  return state;
+}
 export async function readSpace(
   database: OwnerDatabase,
   id: string,
 ): Promise<{ space: Space; state: WorkbenchState }> {
-  // One readonly transaction prevents pairing rows with a different revision.
   return database.transaction(
     'r',
     [database.spaces, ...collections.map((name) => database.records(name))],
     async () => {
       const space = await database.spaces.get(id);
       if (!space) throw new Error('工作空间不存在');
-      const state = { ...space.base, habits: {}, wellbeing: {} } as WorkbenchState;
-      for (const name of collections) {
-        const rows = (await database.records(name).where('spaceId').equals(id).toArray()).sort(
-          (a, b) => a.position - b.position,
-        );
-        if (name === 'habitDefinitions') continue;
-        if (name === 'habitLogs') {
-          for (const row of rows) {
-            state.habits[row.date] ??= {};
-            state.habits[row.date]![String(row.value.habitId)] = Boolean(row.value.done);
-          }
-        } else if (name === 'wellbeing')
-          state.wellbeing = Object.fromEntries(
-            rows.map((row) => [row.date, row.value]),
-          ) as unknown as WorkbenchState['wellbeing'];
-        else
-          state[name] = rows.map((row) => {
-            const value = { ...row.value };
-            if (name === 'accounts') {
-              value.amount = Number(value.amountMinor) / 100;
-              delete value.amountMinor;
-              delete value.currency;
-            }
-            if (name === 'assetHistory') {
-              value.value = Number(value.valueMinor) / 100;
-              delete value.valueMinor;
-              delete value.valuationKind;
-            }
-            return value;
-          }) as never;
-      }
-      return { space, state };
+      const records = {} as Record<Collection, Row[]>;
+      for (const name of collections)
+        records[name] = await database.records(name).where('spaceId').equals(id).toArray();
+      return { space, state: projectSpace(space, records) };
     },
   );
 }
@@ -216,11 +274,13 @@ async function writeRows(
   now: string,
   migrated: boolean,
 ) {
+  const deleted: DeletedRow[] = [];
   for (const name of collections) {
     const table = database.records(name);
     const old = await table.where('spaceId').equals(space.id).toArray();
     const entries = valuesOf(state, name);
     const keep = new Set(entries.map((item) => item.id));
+    deleted.push(...old.filter((row) => !keep.has(row.id)).map((row) => ({ table: name, row })));
     await table.bulkDelete(
       old.filter((row) => !keep.has(row.id)).map((row) => [row.spaceId, row.id]),
     );
@@ -262,12 +322,17 @@ async function writeRows(
         });
     }
   }
+  if (deleted.length && !migrated)
+    await database.trash.add({ id: uid(), spaceId: space.id, deletedAt: now, rows: deleted });
 }
 export const allTables = (database: OwnerDatabase) => [
   database.spaces,
   database.accountSnapshots,
   database.migrations,
   database.metadata,
+  database.trash,
+  database.recoveryPoints,
+  database.legacyArchives,
   ...collections.map((name) => database.records(name)),
 ];
 export async function initializeDatabase(database: OwnerDatabase) {
@@ -324,7 +389,9 @@ export async function importPrototype(
     '',
   );
   return database.transaction('rw', allTables(database), async () => {
-    const existing = await database.migrations.get(hash);
+    const existing =
+      (await database.migrations.get(hash)) ||
+      (await database.migrations.filter((migration) => migration.originalId === hash).first());
     if (existing) return existing.spaceId;
     const now = new Date().toISOString();
     const space: Space = {

@@ -1,8 +1,10 @@
+import { activeHabits } from '../../domain/habits';
+import { habitCounts } from '../../domain/selectors';
 import { todayOf, completedNow, completedToday } from '../../domain/selectors';
 import { useRef, useState } from 'react';
 import type { DragEvent, KeyboardEvent } from 'react';
 import { Icon } from '../../components/Icon';
-import { DOMAINS, HABITS } from '../../domain/models';
+import { DOMAINS } from '../../domain/models';
 import type { DomainId, ModuleProps, Task } from '../../domain/models';
 import { assets, dateOffset as offsetFrom, fmtMoney, money, uid } from '../../domain/selectors';
 
@@ -35,6 +37,7 @@ function Sparkline({ values }: { values: number[] }) {
 export function Overview(props: ModuleProps) {
   const { state, mutate, open, navigate, toast } = props;
   const TODAY = todayOf(state);
+  const HABITS = activeHabits(state, TODAY);
   const dateOffset = (offset: number) => offsetFrom(offset, TODAY);
   const [todoTitle, setTodoTitle] = useState('');
   const [addedTask, setAddedTask] = useState<{ id: string; title: string } | null>(null);
@@ -241,10 +244,9 @@ export function Overview(props: ModuleProps) {
     }
     if (id === 'habits') {
       const today = state.habits[TODAY] ?? {};
-      const weekCount = Array.from({ length: 7 }, (_, index) => dateOffset(-index)).reduce(
-        (sum, date) => sum + HABITS.filter((habit) => state.habits[date]?.[habit.id]).length,
-        0,
-      );
+      const week = habitCounts(state, 7);
+      const weekCount = week.reduce((sum, entry) => sum + entry.count, 0);
+      const weekPlan = week.reduce((sum, entry) => sum + entry.planned, 0);
       return (
         <>
           <div className="habit-summary">
@@ -253,7 +255,7 @@ export function Overview(props: ModuleProps) {
               <span> / {HABITS.length} 项</span>
             </strong>
             <span className="metric-label">
-              近 7 天 {weekCount} / {7 * HABITS.length} 次
+              近 7 天 {weekCount} / {weekPlan} 次
             </span>
           </div>
           <div className="habit-list">
@@ -266,6 +268,8 @@ export function Overview(props: ModuleProps) {
                     const checked = event.target.checked;
                     if (
                       await mutate((draft) => {
+                        if (!activeHabits(draft, TODAY).some((item) => item.id === habit.id))
+                          throw new Error('习惯配置已变化，请核对后重试');
                         draft.habits[TODAY] = { ...draft.habits[TODAY], [habit.id]: checked };
                       })
                     )

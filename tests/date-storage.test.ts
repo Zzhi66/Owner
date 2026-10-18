@@ -20,6 +20,7 @@ import {
 import { copyToPersonal, previewCopy } from '../src/data/migrations/copy';
 import { inspectLegacy } from '../src/data/migrations/legacy';
 import { createInitialState, STORAGE_KEY } from '../src/data/prototype';
+import { defaultHabits } from '../src/domain/habits';
 const databases: OwnerDatabase[] = [];
 async function database() {
   const db = new OwnerDatabase(`owner-test-${crypto.randomUUID()}`);
@@ -132,7 +133,7 @@ describe('transactional spaces and legacy migration', () => {
     expect(await importPrototype(db, raw, report.state!)).toBe(id);
     expect(await db.spaces.count()).toBe(3);
     expect(await db.migrations.count()).toBe(1);
-    expect((await readSpace(db, id)).state).toEqual(old);
+    expect((await readSpace(db, id)).state).toEqual({ ...old, habitDefinitions: defaultHabits() });
     expect(storage.get(STORAGE_KEY)).toBe(raw);
     expect(
       (await db.records('accounts').where('spaceId').equals(id).first())?.createdAt,

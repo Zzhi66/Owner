@@ -1,5 +1,6 @@
+import { activeHabits } from '../../domain/habits';
 import { todayOf } from '../../domain/selectors';
-import { DOMAINS, HABITS, type View, type WorkbenchState } from '../../domain/models';
+import { DOMAINS, type View, type WorkbenchState } from '../../domain/models';
 import {
   assets,
   dateOffset as offsetFrom,
@@ -25,6 +26,7 @@ export function contextName(context: View): string {
 /** Deterministic local demonstration; this function never calls a model or external service. */
 export function createSummary(state: WorkbenchState, context: View, prompt: string): AgentSummary {
   const TODAY = todayOf(state);
+  const HABITS = activeHabits(state, TODAY);
   const dateOffset = (offset: number) => offsetFrom(offset, TODAY);
   const daily = periodRecords(state.daily, state.range, TODAY);
   const sleepRecords = daily.filter(
@@ -73,7 +75,7 @@ export function createSummary(state: WorkbenchState, context: View, prompt: stri
     }
     if (context === 'overview' || context === 'habits') {
       sections.push(
-        `习惯\n已完成 ${habits}/${state.range * HABITS.length} 次自设计划。\n今天完成 ${HABITS.filter((habit) => state.habits[TODAY]?.[habit.id]).length}/${HABITS.length} 项。`,
+        `习惯\n已完成 ${habits}/${habitCounts(state, state.range).reduce((sum, entry) => sum + entry.planned, 0)} 次自设计划。\n今天完成 ${HABITS.filter((habit) => state.habits[TODAY]?.[habit.id]).length}/${HABITS.length} 项。`,
       );
     }
     if (context === 'overview' || context === 'diet') {

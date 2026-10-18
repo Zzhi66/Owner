@@ -1,8 +1,10 @@
+import { activeHabits, definitionsOf } from '../../domain/habits';
+import { removeRecord } from '../../domain/records';
 import { todayOf, completedNow } from '../../domain/selectors';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { FormEvent, InputHTMLAttributes } from 'react';
 import { assets, uid } from '../../domain/selectors';
-import { DOMAINS, HABITS } from '../../domain/models';
+import { DOMAINS } from '../../domain/models';
 import type { Account, DialogRequest, ModuleProps } from '../../domain/models';
 import { Modal } from '../../components/Modal';
 import {
@@ -64,10 +66,35 @@ export function RecordEditor({
   const { record: kind, id } = request;
   const eventItem = state.events.find((item) => item.id === id);
   const goal = state.goals.find((item) => item.id === id);
+  const mealItem = state.meals.find((item) => item.id === id);
+  const session = state.sessions.find((item) => item.id === id);
+  const accountItem = state.accounts.find((item) => item.id === id);
+  const taskItem = state.tasks.find((item) => item.id === id);
+  const noteItem = state.notes.find((item) => item.id === id);
+  const HABITS = definitionsOf(state);
   const [date, setDate] = useState(
-    kind === 'wellbeing' ? id || TODAY : kind === 'event' ? eventItem?.date || TODAY : TODAY,
+    kind === 'wellbeing' || kind === 'body' || kind === 'habits'
+      ? id || TODAY
+      : kind === 'event'
+        ? eventItem?.date || TODAY
+        : kind === 'diet'
+          ? mealItem?.date || TODAY
+          : kind === 'work'
+            ? session?.date || TODAY
+            : kind === 'assets'
+              ? accountItem?.date || TODAY
+              : kind === 'task'
+                ? taskItem?.date || TODAY
+                : noteItem?.date || TODAY,
   );
   const [error, setError] = useState('');
+  const [selectedHabit, setSelectedHabit] = useState(
+    request.habitId || activeHabits(state, date)[0]?.id || HABITS[0]?.id || '',
+  );
+  const errorRef = useRef<HTMLParagraphElement>(null);
+  useEffect(() => {
+    if (error) errorRef.current?.focus();
+  }, [error]);
   const saving = useRef(false);
   const [pending, setPending] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -76,19 +103,27 @@ export function RecordEditor({
   const feeling = state.wellbeing[date];
   const domain = DOMAINS.find((item) => item.id === kind);
   const title =
-    kind === 'wellbeing'
-      ? '心情与精力'
-      : kind === 'event'
-        ? eventItem
-          ? '编辑日程'
-          : '添加日程与重要日期'
-        : kind === 'goal'
-          ? goal
-            ? '编辑阶段目标'
-            : '添加阶段目标'
-          : kind === 'assets'
-            ? '更新资产记录'
-            : `补充${domain?.name || ''}记录`;
+    kind === 'task'
+      ? id
+        ? '编辑待办'
+        : '添加待办'
+      : kind === 'note'
+        ? id
+          ? '编辑随手记'
+          : '添加随手记'
+        : kind === 'wellbeing'
+          ? '心情与精力'
+          : kind === 'event'
+            ? eventItem
+              ? '编辑日程'
+              : '添加日程与重要日期'
+            : kind === 'goal'
+              ? goal
+                ? '编辑阶段目标'
+                : '添加阶段目标'
+              : kind === 'assets'
+                ? '更新资产记录'
+                : `补充${domain?.name || ''}记录`;
   const closeSuccess = () => {
     toast('已保存，面板已更新');
     onClose();
@@ -112,7 +147,10 @@ export function RecordEditor({
     const str = (name: string) => String(data.get(name) || '').trim();
     const num = (name: string) => (str(name) === '' ? null : Number(str(name)));
     const date = str('date');
-    if (kind !== 'goal' && (!validDate(date) || (kind !== 'event' && date > TODAY))) {
+    if (
+      kind !== 'goal' &&
+      (!validDate(date) || (!['event', 'task'].includes(kind) && date > TODAY))
+    ) {
       setError('请选择有效的记录日期');
       return;
     }
@@ -123,9 +161,11 @@ export function RecordEditor({
           ? ['title', 'project']
           : kind === 'assets'
             ? ['name']
-            : kind === 'event' || kind === 'goal'
+            : kind === 'event' || kind === 'goal' || kind === 'task'
               ? ['title']
-              : [];
+              : kind === 'note'
+                ? ['text']
+                : [];
     if (requiredText.some((name) => !str(name))) {
       setError('必填内容不能只包含空格');
       return;
@@ -143,13 +183,13 @@ export function RecordEditor({
     const target: RecordEditTarget =
       kind === 'body' || kind === 'wellbeing'
         ? { kind, date }
-        : kind === 'event' || kind === 'goal'
-          ? { kind, id }
+        : ['event', 'goal', 'task', 'note'].includes(kind)
+          ? { kind: kind as 'event' | 'goal' | 'task' | 'note', id }
           : kind === 'assets'
-            ? { kind, name: str('name'), type: str('type') }
+            ? { kind, id, name: str('name'), type: str('type') }
             : kind === 'habits'
               ? { kind, date, habit: str('habit') }
-              : { kind };
+              : { kind: kind as 'diet' | 'work', id };
     if (!matchesRecordEditBaseline(baseline, state, target)) {
       setError(RECORD_EDIT_CONFLICT);
       return;
@@ -187,27 +227,38 @@ export function RecordEditor({
         if (index >= 0) draft.daily[index] = { ...draft.daily[index], ...value };
         else draft.daily.push(value);
       } else if (kind === 'habits') {
+        if (
+          !activeHabits(draft, date).some((habit) => habit.id === str('habit')) &&
+          draft.habits[date]?.[str('habit')] === undefined
+        )
+          throw new Error('该日期尚未启用此习惯，请先调整习惯配置');
         draft.habits[date] = { ...draft.habits[date], [str('habit')]: str('done') === 'yes' };
       } else if (kind === 'diet') {
-        draft.meals.push({
-          id: uid(),
+        const value = {
+          id: id || uid(),
           date,
           meal: str('meal'),
           content: str('content'),
           portion: str('portion'),
           calories: num('calories'),
           source: '手动记录',
-        });
+        };
+        const index = draft.meals.findIndex((item) => item.id === id);
+        if (index >= 0) draft.meals[index] = { ...draft.meals[index], ...value };
+        else draft.meals.push(value);
       } else if (kind === 'work') {
-        draft.sessions.push({
-          id: uid(),
+        const value = {
+          id: id || uid(),
           date,
           title: str('title'),
           project: str('project'),
           minutes: Number(str('minutes')),
           source: '手动记录',
-        });
-        if (str('done') !== 'none')
+        };
+        const index = draft.sessions.findIndex((item) => item.id === id);
+        if (index >= 0) draft.sessions[index] = { ...draft.sessions[index], ...value };
+        else draft.sessions.push(value);
+        if (!id && str('done') !== 'none')
           draft.tasks.push({
             id: uid(),
             date,
@@ -219,9 +270,18 @@ export function RecordEditor({
               : {}),
           });
       } else if (kind === 'assets') {
-        const index = draft.accounts.findIndex(
-          (item) => item.name === str('name') && item.type === str('type'),
+        const index = draft.accounts.findIndex((item) =>
+          id ? item.id === id : item.name === str('name') && item.type === str('type'),
         );
+        if (
+          draft.accounts.some(
+            (item) =>
+              item.id !== draft.accounts[index]?.id &&
+              item.name === str('name') &&
+              item.type === str('type'),
+          )
+        )
+          throw new Error('已有同名同类账户，请使用已有账户');
         const account: Account = {
           id: draft.accounts[index]?.id || uid(),
           name: str('name'),
@@ -241,6 +301,33 @@ export function RecordEditor({
           energy: Number(str('energy')),
           reason: str('reason'),
         };
+      } else if (kind === 'note') {
+        const value = { id: id || uid(), date, text: str('text') };
+        const index = draft.notes.findIndex((item) => item.id === id);
+        if (index >= 0) draft.notes[index] = { ...draft.notes[index], ...value };
+        else draft.notes.push(value);
+      } else if (kind === 'task') {
+        const done = str('done') === 'yes';
+        const value = {
+          ...taskItem,
+          id: id || uid(),
+          date,
+          title: str('title'),
+          project: str('project'),
+          done,
+        };
+        if (!done) delete value.completedAt;
+        else
+          value.completedAt = taskItem?.done
+            ? taskItem.completedAt
+            : date >= TODAY
+              ? completedNow(state)
+              : date;
+        if (str('goalId')) value.goalId = str('goalId');
+        else delete value.goalId;
+        const index = draft.tasks.findIndex((item) => item.id === id);
+        if (index >= 0) draft.tasks[index] = value;
+        else draft.tasks.push(value);
       } else if (kind === 'event') {
         const value = {
           id: id || uid(),
@@ -279,7 +366,13 @@ export function RecordEditor({
   }
   async function remove() {
     const target: RecordEditTarget =
-      kind === 'wellbeing' ? { kind, date } : { kind: kind === 'event' ? 'event' : 'goal', id };
+      kind === 'body' || kind === 'wellbeing'
+        ? { kind, date }
+        : kind === 'habits'
+          ? { kind, date, habit: selectedHabit }
+          : kind === 'assets'
+            ? { kind, id, name: accountItem?.name || '', type: accountItem?.type || '' }
+            : { kind, id };
     if (!matchesRecordEditBaseline(baseline, state, target)) {
       setError(RECORD_EDIT_CONFLICT);
       return;
@@ -299,30 +392,35 @@ export function RecordEditor({
         mutationError = RECORD_EDIT_CONFLICT;
         throw error;
       }
-      if (kind === 'wellbeing') delete draft.wellbeing[date];
-      if (kind === 'event') draft.events = draft.events.filter((item) => item.id !== id);
-      if (kind === 'goal') {
-        draft.goals = draft.goals.filter((item) => item.id !== id);
-        draft.tasks.forEach((task) => {
-          if (task.goalId === id) delete task.goalId;
-        });
-      }
+      removeRecord(draft, kind, id, date, selectedHabit);
     });
     saving.current = false;
     setPending(false);
     if (ok) {
-      toast('已删除记录');
+      toast('已移入回收站，可在设置中恢复');
       onClose();
     } else setError(mutationError || '记录尚未删除。请查看页面提示，草稿已保留。');
   }
   const canDelete =
-    kind === 'wellbeing'
-      ? !!feeling
-      : kind === 'event'
-        ? !!eventItem
-        : kind === 'goal'
-          ? !!goal
-          : false;
+    kind === 'body'
+      ? !!body
+      : kind === 'wellbeing'
+        ? !!feeling
+        : kind === 'habits'
+          ? state.habits[date]?.[selectedHabit] !== undefined
+          : kind === 'event'
+            ? !!eventItem
+            : kind === 'goal'
+              ? !!goal
+              : kind === 'diet'
+                ? !!mealItem
+                : kind === 'work'
+                  ? !!session
+                  : kind === 'assets'
+                    ? !!accountItem
+                    : kind === 'task'
+                      ? !!taskItem
+                      : !!noteItem;
   return (
     <Modal
       title={title}
@@ -333,7 +431,7 @@ export function RecordEditor({
     >
       <form onSubmit={submit}>
         {error && (
-          <p role="alert" className="form-error">
+          <p role="alert" className="form-error" tabIndex={-1} ref={errorRef}>
             {error}
           </p>
         )}
@@ -344,7 +442,7 @@ export function RecordEditor({
               name="date"
               type="date"
               required
-              max={kind === 'event' ? undefined : TODAY}
+              max={kind === 'event' || kind === 'task' ? undefined : TODAY}
               value={date}
               onInput={(event) => changeDate(event.currentTarget.value)}
               onChange={(event) => changeDate(event.target.value)}
@@ -397,7 +495,14 @@ export function RecordEditor({
               <>
                 <label className="field">
                   习惯
-                  <select name="habit">
+                  <select
+                    name="habit"
+                    value={selectedHabit}
+                    onChange={(event) => {
+                      setSelectedHabit(event.target.value);
+                      setBaseline(captureRecordEditBaseline(state));
+                    }}
+                  >
                     {HABITS.map((habit) => (
                       <option key={habit.id} value={habit.id}>
                         {habit.name}
@@ -407,7 +512,11 @@ export function RecordEditor({
                 </label>
                 <label className="field">
                   完成情况
-                  <select name="done">
+                  <select
+                    name="done"
+                    key={date + selectedHabit}
+                    defaultValue={state.habits[date]?.[selectedHabit] ? 'yes' : 'no'}
+                  >
                     <option value="yes">已完成</option>
                     <option value="no">未完成</option>
                   </select>
@@ -420,7 +529,7 @@ export function RecordEditor({
                   label="餐次"
                   name="meal"
                   values={['早餐', '午餐', '晚餐', '加餐']}
-                  value="晚餐"
+                  value={mealItem?.meal || '晚餐'}
                 />
                 <Field
                   label="吃了什么"
@@ -428,11 +537,18 @@ export function RecordEditor({
                   required
                   maxLength={160}
                   placeholder="例如：米饭、鱼、青菜"
+                  defaultValue={mealItem?.content || ''}
                 />
-                <Field label="份量（可选）" name="portion" maxLength={100} />
+                <Field
+                  label="份量（可选）"
+                  name="portion"
+                  maxLength={100}
+                  defaultValue={mealItem?.portion || ''}
+                />
                 <Field
                   label="估算热量（kcal，可选）"
                   name="calories"
+                  defaultValue={mealItem?.calories ?? ''}
                   type="number"
                   min="0"
                   max="20000"
@@ -448,9 +564,15 @@ export function RecordEditor({
                   name="project"
                   required
                   maxLength={100}
-                  defaultValue="个人工作台"
+                  defaultValue={session?.project || '个人工作台'}
                 />
-                <Field label="做了什么" name="title" required maxLength={160} />
+                <Field
+                  label="做了什么"
+                  name="title"
+                  required
+                  maxLength={160}
+                  defaultValue={session?.title || ''}
+                />
                 <Field
                   label="专注分钟数"
                   name="minutes"
@@ -459,16 +581,18 @@ export function RecordEditor({
                   min="1"
                   max="1440"
                   step="1"
-                  defaultValue={30}
+                  defaultValue={session?.minutes ?? 30}
                 />
-                <label className="field">
-                  关联待办
-                  <select name="done">
-                    <option value="yes">记录一项已完成任务</option>
-                    <option value="no">记录一项待处理任务</option>
-                    <option value="none">仅记录时间投入</option>
-                  </select>
-                </label>
+                {!id && (
+                  <label className="field">
+                    关联待办
+                    <select name="done">
+                      <option value="yes">记录一项已完成任务</option>
+                      <option value="no">记录一项待处理任务</option>
+                      <option value="none">仅记录时间投入</option>
+                    </select>
+                  </label>
+                )}
               </>
             )}
             {kind === 'assets' && (
@@ -479,10 +603,11 @@ export function RecordEditor({
                   required
                   maxLength={100}
                   placeholder="同名同类账户会更新当前余额"
+                  defaultValue={accountItem?.name || ''}
                 />
                 <label className="field">
                   类型
-                  <select name="type">
+                  <select name="type" defaultValue={accountItem?.type || 'cash'}>
                     <option value="cash">现金 / 存款</option>
                     <option value="investment">投资</option>
                     <option value="other">其他资产</option>
@@ -492,6 +617,7 @@ export function RecordEditor({
                 <Field
                   label="当前金额（人民币）"
                   name="amount"
+                  defaultValue={accountItem?.amount ?? ''}
                   type="number"
                   required
                   min="0"
@@ -554,6 +680,52 @@ export function RecordEditor({
                   maxLength={200}
                   defaultValue={eventItem?.note || ''}
                 />
+              </>
+            )}
+            {kind === 'note' && (
+              <label className="field">
+                内容
+                <textarea
+                  name="text"
+                  required
+                  maxLength={1000}
+                  defaultValue={noteItem?.text || ''}
+                />
+              </label>
+            )}
+            {kind === 'task' && (
+              <>
+                <Field
+                  label="待办内容"
+                  name="title"
+                  required
+                  maxLength={160}
+                  defaultValue={taskItem?.title || ''}
+                />
+                <Field
+                  label="项目（可选）"
+                  name="project"
+                  maxLength={100}
+                  defaultValue={taskItem?.project || ''}
+                />
+                <label className="field">
+                  完成情况
+                  <select name="done" defaultValue={taskItem?.done ? 'yes' : 'no'}>
+                    <option value="no">待处理</option>
+                    <option value="yes">已完成</option>
+                  </select>
+                </label>
+                <label className="field">
+                  关联目标
+                  <select name="goalId" defaultValue={taskItem?.goalId || ''}>
+                    <option value="">不关联目标</option>
+                    {state.goals.map((goal) => (
+                      <option key={goal.id} value={goal.id}>
+                        {goal.title}
+                      </option>
+                    ))}
+                  </select>
+                </label>
               </>
             )}
             {kind === 'goal' && (

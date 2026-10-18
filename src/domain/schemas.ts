@@ -89,6 +89,23 @@ export const wellbeingSchema = record({
   energy: finite.int().min(1).max(5),
   reason: text,
 });
+export const habitDefinitionSchema = record({
+  id,
+  name: text.trim().min(1).max(100),
+  periods: z
+    .array(z.object({ from: daySchema, to: daySchema.optional() }))
+    .superRefine((periods, context) => {
+      const ordered = [...periods].sort((a, b) => a.from.localeCompare(b.from));
+      ordered.forEach((period, index) => {
+        const previous = ordered[index - 1];
+        if (
+          (period.to && period.to < period.from) ||
+          (previous && (!previous.to || previous.to > period.from))
+        )
+          context.addIssue({ code: 'custom', message: '习惯启用日期不能交叉或倒序' });
+      });
+    }),
+});
 export const workbenchSchema = z
   .object({
     schemaVersion: z.literal(1),
@@ -113,6 +130,7 @@ export const workbenchSchema = z
     agentTasks: z.array(entitySchemas.agentTasks),
     artifacts: z.array(entitySchemas.artifacts),
     habits: z.record(daySchema, z.record(id, z.boolean())),
+    habitDefinitions: z.array(habitDefinitionSchema).optional(),
     wellbeing: z.record(daySchema, wellbeingSchema),
   })
   .passthrough();

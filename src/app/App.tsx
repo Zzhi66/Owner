@@ -19,6 +19,14 @@ const RecordEditor = lazy(() =>
 const Managers = lazy(() =>
   import('../features/records/Managers').then((module) => ({ default: module.Managers })),
 );
+const DataManager = lazy(() =>
+  import('../features/records/DataManager').then((module) => ({ default: module.DataManager })),
+);
+const BackupManager = lazy(() =>
+  import('../features/settings/BackupManager').then((module) => ({
+    default: module.BackupManager,
+  })),
+);
 
 function viewFromHash(): View {
   const value = window.location.hash.slice(1);
@@ -357,6 +365,17 @@ export function App() {
         {dialog &&
           (dialog.kind === 'record' ? (
             <RecordEditor key={dialogKey} {...moduleProps} request={dialog} onClose={closeDialog} />
+          ) : dialog.kind === 'backup' ? (
+            <BackupManager
+              {...moduleProps}
+              onClose={closeDialog}
+              onSelectSpace={workbench.selectSpace}
+            />
+          ) : dialog.kind === 'history' ||
+            dialog.kind === 'trash' ||
+            dialog.kind === 'habit-settings' ||
+            dialog.kind === 'snapshots' ? (
+            <DataManager {...moduleProps} request={dialog} onClose={closeDialog} />
           ) : (
             <Managers key={dialogKey} {...moduleProps} request={dialog} onClose={closeDialog} />
           ))}
