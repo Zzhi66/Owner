@@ -50,7 +50,7 @@ P0 的旧端口信息保留在历史报告中；当前命令和地址以本指�
 | scripts/build.mjs、scripts/build-path.mjs | 构建目录保护与原型完整性检查 |
 | tests/ | 构建保护、过渡存储、统计与本地 Agent 边界测试 |
 
-P1 优先保持界面等价，复用 HUD 样式；后续按组件逐步整理 CSS Modules。核心视觉仍为 SVG。P2 已安装 Dexie 4.4.6、Zod 4.6.7；数据库测试使用 fake-indexeddb 6.2.6。ECharts、Three.js 和真实 Agent 尚未接入。
+P1 优先保持界面等价，复用 HUD 样式；后续按组件逐步整理 CSS Modules。核心视觉仍为 SVG。P2 已安装 Dexie 4.4.6、Zod 4.6.7；数据库测试使用 fake-indexeddb 6.2.6。P4 接入 ECharts 6.1.0，Three.js 和真实 Agent 尚未接入。
 
 `dist/` 是手写源码，不能删除、清空或加入忽略规则。Vite 输出固定为 `build/`；官方构建入口会拒绝其他输出路径，并在构建前后核对原型文件树和 SHA-256 指纹。不要绕过保护使用任意 outDir 构建。生成的 `build/` 不提交。
 
@@ -82,6 +82,8 @@ P1 优先保持界面等价，复用 HUD 样式；后续按组件逐步整理 CS
 
 ## 验证与验收
 
+P4 统计位于 `src/domain/statistics.ts`，ECharts 配置及按类型加载入口位于 `src/features/charts/`。空状态不加载引擎，图表卸载需同时释放实例和 ResizeObserver；新增图表必须带范围、单位、来源和原生数据表。正式构建额外检查 manifest、首屏图表隔离、500 kB 分包上限和本地资源；`dist/` 指纹保护继续执行。完整验收记录见 [P4 图表与首版验收](P4_CHARTS_RELEASE.md)，用户操作口径见 [数据与恢复指南](DATA_AND_RECOVERY.md)。
+
 修改后运行 `npm run check`。React 变更还运行 `npm run verify`。前者仅语法检查，后者包含静态检查、测试、类型与生产构建；均不能替代浏览器交互检查。P1 的当前验证状态与待检查项记录在 [迁移记录](P1_REACT_MIGRATION.md)。
 
 按改动范围做浏览器检查，使用专用测试记录并在验证后清理，不重置用户存储或改动既有个人记录：
@@ -99,6 +101,6 @@ P1 优先保持界面等价，复用 HUD 样式；后续按组件逐步整理 CS
 
 ## 后续边界与版本管理
 
-当前开发分支为 `codex/p3-records-backup`；GitHub 私有仓库为 https://github.com/Zzhi66/Owner。每次提交围绕一个可说明的变化，记录具体功能、检查结果和未覆盖范围；提交前运行 `git diff --check` 与相关检查。P0 历史报告保留原样。
+当前开发分支为 `codex/p4-charts-release`；GitHub 私有仓库为 https://github.com/Zzhi66/Owner。每次提交围绕一个可说明的变化，记录具体功能、检查结果和未覆盖范围；提交前运行 `git diff --check` 与相关检查。P0 历史报告保留原样。
 
 P1 只做组件迁移和必要的过渡存储保护；P2 建立日期服务、Zod、Dexie 和记录空间隔离，P3 实施完整恢复与记录闭环，P4 接入正式图表并做第一版验收。模型密钥不能进入浏览器源码或仓库，真实模型、同步及桌面端按后续阶段实施。

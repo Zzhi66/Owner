@@ -3,6 +3,7 @@ import { readFile, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { build, resolveConfig } from 'vite';
 import { assertBuildOutput } from './build-path.mjs';
+import { auditProduction } from './production-audit.mjs';
 
 async function fingerprint(directory) {
   const entries = await readdir(directory, { withFileTypes: true });
@@ -27,3 +28,4 @@ await build();
 const after = JSON.stringify(await fingerprint(prototypePath));
 if (before !== after) throw new Error('构建期间原型目录发生变化，请检查 dist/。');
 console.log('Prototype integrity verified: dist/ unchanged.');
+await auditProduction(join(config.root, 'build'));

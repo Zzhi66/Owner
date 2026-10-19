@@ -7,18 +7,25 @@ import {
   assets,
   dateOffset as offsetFrom,
   focusHours,
-  habitCounts,
   money,
   periodRecords,
 } from '../../domain/selectors';
 import { TrendChart } from './TrendChart';
-
-const bodyLabels = {
-  sleep: { label: '睡眠', unit: '小时' },
-  weight: { label: '体重', unit: 'kg' },
-  steps: { label: '活动量', unit: '步' },
-};
-const accountLabels = { cash: '现金', investment: '投资', other: '其他资产', liability: '负债' };
+import { HabitChart } from '../charts/HabitChart';
+import { AssetChart } from '../charts/AssetChart';
+import {
+  accountLabels,
+  assetSeries,
+  bodyLabels,
+  bodySeries,
+  chartSource,
+  focusProjects,
+  focusSeries,
+  habitSeries,
+  seriesStats,
+} from '../../domain/statistics';
+import { completionDate } from '../../shared/date/service';
+import { timezoneOf } from '../../domain/selectors';
 
 export function DomainDetails({
   state,
@@ -32,26 +39,13 @@ export function DomainDetails({
   const dateOffset = (offset: number) => offsetFrom(offset, TODAY);
   const domain = DOMAINS.find((item) => item.id === view);
   if (!domain) return null;
-  const dates = Array.from({ length: state.range }, (_, index) =>
-    dateOffset(index + 1 - state.range),
-  );
   let content: ReactNode;
   let footer: ReactNode;
   if (view === 'body') {
-    const daily = periodRecords(state.daily, state.range, TODAY);
     const metric = state.bodyMetric;
     const { label, unit } = bodyLabels[metric];
-    const values = daily.flatMap((entry) => {
-      const value = entry[metric];
-      return value === null || !Number.isFinite(value) ? [] : [value];
-    });
-    const mean = values.length
-      ? values.reduce((sum, value) => sum + value, 0) / values.length
-      : null;
-    const chartRecords = dates.map((date) => ({
-      date,
-      value: daily.find((entry) => entry.date === date)?.[metric] ?? null,
-    }));
+    const chartRecords = bodySeries(state);
+    const { mean, count } = seriesStats(chartRecords);
     const feelings = Object.entries(state.wellbeing)
       .filter(([date]) => date >= dateOffset(1 - state.range) && date <= TODAY)
       .sort(([a], [b]) => b.localeCompare(a));
@@ -131,12 +125,11 @@ export function DomainDetails({
         {dateOffset(1 - state.range)
           .slice(5)
           .replace('-', '/')}
-        —{TODAY.slice(5).replace('-', '/')} · 有效记录 {values.length}/{state.range} 天 ·
-        原始数值展示
+        —{TODAY.slice(5).replace('-', '/')} · 有效记录 {count}/{state.range} 天 · 原始数值展示
       </>
     );
   } else if (view === 'habits') {
-    const counts = habitCounts(state, state.range);
+    const counts = habitSeries(state);
     const completed = counts.reduce((sum, entry) => sum + entry.count, 0);
     content = (
       <>
@@ -146,16 +139,7 @@ export function DomainDetails({
           </strong>
           <span>已完成 / 自设计划次数</span>
         </div>
-        <div className="heatmap-grid" aria-label="每日习惯完成情况">
-          {counts.map((entry) => (
-            <div className={`heatmap-cell ${entry.count ? 'done' : ''}`} key={entry.date}>
-              <span>{entry.date.slice(5).replace('-', '/')}</span>
-              <strong>
-                {entry.count}/{entry.planned}
-              </strong>
-            </div>
-          ))}
-        </div>
+        <HabitChart state={state} />
       </>
     );
     footer = (
@@ -210,15 +194,11 @@ export function DomainDetails({
       </>
     );
   } else if (view === 'work') {
-    const sessions = periodRecords(state.sessions, state.range, TODAY);
-    const records = dates.map((date) => {
-      const entries = sessions.filter((session) => session.date === date);
-      return {
-        date,
-        value: entries.length
-          ? entries.reduce((sum, session) => sum + session.minutes, 0) / 60
-          : null,
-      };
+    const records = focusSeries(state);
+    const projects = focusProjects(state);
+    const completed = state.tasks.filter((task) => {
+      const date = completionDate(task.completedAt, timezoneOf(state));
+      return task.done && date && date >= dateOffset(1 - state.range) && date <= TODAY;
     });
     content = (
       <>
@@ -230,6 +210,30 @@ export function DomainDetails({
           </button>
         </div>
         <TrendChart records={records} metric="hours" unit="小时" bars />
+        {projects.length > 0 && (
+          <details className="chart-data">
+            <summary>查看项目投入分布</summary>
+            <table>
+              <caption>当前范围内的专注投入 · 按分钟汇总</caption>
+              <thead>
+                <tr>
+                  <th scope="col">项目</th>
+                  <th scope="col">分钟</th>
+                  <th scope="col">小时</th>
+                </tr>
+              </thead>
+              <tbody>
+                {projects.map((project) => (
+                  <tr key={project.name}>
+                    <th scope="row">{project.name}</th>
+                    <td>{project.minutes}</td>
+                    <td>{(project.minutes / 60).toFixed(2)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </details>
+        )}
         <div className="personal-inline">
           <span>阶段目标 · {state.goals.length} 个</span>
           <button className="text-button" onClick={() => open({ kind: 'goals' })}>
@@ -241,25 +245,13 @@ export function DomainDetails({
     footer = (
       <>
         <Icon name="briefcase" />
-        任务完成 {state.tasks.filter((task) => task.done).length}/{state.tasks.length} 项 ·
+        这段时间完成 {completed.length} 项待办 · 按完成日期统计，未知完成日期不计入 ·
         时间投入与成果分别记录
       </>
     );
   } else {
     const balance = assets(state);
-    const types = ['cash', 'investment', 'other'] as const;
-    const portions = types.map((type) => ({
-      type,
-      amount: state.accounts
-        .filter((account) => account.type === type)
-        .reduce((sum, account) => sum + account.amount, 0),
-    }));
-    const history = Array.from({ length: 30 }, (_, index) => dateOffset(index - 29)).map(
-      (date) => ({
-        date,
-        value: state.assetHistory.find((entry) => entry.date === date)?.value ?? null,
-      }),
-    );
+    const history = assetSeries(state);
     content = (
       <>
         <div className="chart-meta">
@@ -277,25 +269,7 @@ export function DomainDetails({
             <Icon name={state.hideMoney ? 'eye-off' : 'eye'} />
           </button>
         </div>
-        <div className="asset-breakdown detail-allocation">
-          <div className="allocation-bar" role="img" aria-label="现金、投资、其他资产的构成">
-            {portions.map(({ type, amount }) => (
-              <span
-                key={type}
-                style={{ width: `${balance.total > 0 ? (amount / balance.total) * 100 : 0}%` }}
-              />
-            ))}
-          </div>
-          <div className="asset-legend">
-            {portions.map(({ type, amount }) => (
-              <span key={type}>
-                <i />
-                {type === 'other' ? '其他' : accountLabels[type]}{' '}
-                {balance.total > 0 ? Math.round((amount / balance.total) * 100) : 0}%
-              </span>
-            ))}
-          </div>
-        </div>
+        <AssetChart state={state} />
         <div className="record-list">
           {state.accounts.length ? (
             state.accounts.map((account) => (
@@ -315,13 +289,22 @@ export function DomainDetails({
         </div>
         <div className="asset-history">
           <p className="metric-label">
-            {state.runtime?.kind === 'personal' ? '手动净资产汇总' : '原型历史估值'} · 近 30 天
+            {state.runtime?.kind === 'personal' ? '手动净资产汇总' : '原型历史估值'} · 近{' '}
+            {state.range} 天
           </p>
           {state.hideMoney ? (
             <div className="empty-line">金额已隐藏</div>
           ) : (
-            <TrendChart records={history} metric="value" unit="元" />
+            <TrendChart
+              records={history}
+              metric="value"
+              unit="元"
+              label={state.runtime?.kind === 'personal' ? '手动净资产汇总' : '原型历史估值'}
+            />
           )}
+          <p className="chart-summary">
+            按原有估值日期展示；账户快照可单独查看，不将快照推算成连续净资产或账户流水。
+          </p>
         </div>
       </>
     );
@@ -338,7 +321,7 @@ export function DomainDetails({
         <button className="text-button" onClick={() => navigate('overview')}>
           ← 返回总览
         </button>
-        {view !== 'assets' && (
+        {
           <div className="period-picker" aria-label="详情统计时间范围">
             {([7, 30] as const).map((range) => (
               <button
@@ -354,7 +337,7 @@ export function DomainDetails({
               </button>
             ))}
           </div>
-        )}
+        }
       </div>
       <section className="detail-panel glass-panel" aria-labelledby="detail-title">
         <div className="panel-heading">
@@ -391,6 +374,12 @@ export function DomainDetails({
             </button>
           )}
         </div>
+        <p className="chart-context">
+          来源：{chartSource(state)} · {state.runtime?.spaceName || '当前空间'}
+          <br />
+          统计日期：{dateOffset(1 - state.range)} → {TODAY}（含首尾） ·{' '}
+          {view === 'assets' ? '构成按当前账户余额；估值按所选范围' : '仅统计当前空间和所选范围'}
+        </p>
         <div id="detail-content">{content}</div>
         <div className="detail-footer">{footer}</div>
       </section>

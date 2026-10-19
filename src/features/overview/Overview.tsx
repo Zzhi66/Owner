@@ -7,28 +7,40 @@ import { Icon } from '../../components/Icon';
 import { DOMAINS } from '../../domain/models';
 import type { DomainId, ModuleProps, Task } from '../../domain/models';
 import { assets, dateOffset as offsetFrom, fmtMoney, money, uid } from '../../domain/selectors';
+import { bodySeries, type ChartPoint } from '../../domain/statistics';
 
-function Sparkline({ values }: { values: number[] }) {
+function Sparkline({ records }: { records: ChartPoint[] }) {
+  const values = records.flatMap((entry) => (entry.value === null ? [] : [entry.value]));
   if (!values.length) return null;
   const min = Math.min(...values);
   const span = Math.max(...values) - min || 1;
-  const points = values.map((value, index) => [
-    5 + (index * 94) / Math.max(1, values.length - 1),
-    30 - ((value - min) / span) * 24,
-  ]);
-  const last = points.at(-1);
+  const points = records.map(({ value }, index) =>
+    value === null
+      ? null
+      : [5 + (index * 94) / Math.max(1, records.length - 1), 30 - ((value - min) / span) * 24],
+  );
+  const last = points.filter((point) => point !== null).at(-1);
   return (
     <svg
       className="sparkline"
       viewBox="0 0 104 37"
       role="img"
-      aria-label="近 7 天已记录的睡眠时长趋势"
+      aria-label="近 7 天已记录的睡眠时长趋势，空缺日期不连线"
     >
       <path
         d={points
-          .map(([x, y], index) => `${index ? 'L' : 'M'}${x?.toFixed(1)},${y?.toFixed(1)}`)
+          .map((point, index) =>
+            point
+              ? `${points[index - 1] ? 'L' : 'M'}${point[0]?.toFixed(1)},${point[1]?.toFixed(1)}`
+              : '',
+          )
           .join(' ')}
       />
+      {points.map((point, index) =>
+        point && !points[index - 1] && !points[index + 1] ? (
+          <circle key={index} cx={point[0]} cy={point[1]} r="2.5" />
+        ) : null,
+      )}
       {last && <circle cx={last[0]} cy={last[1]} r="2.5" />}
     </svg>
   );
@@ -212,9 +224,7 @@ export function Overview(props: ModuleProps) {
               </div>
             </div>
             <div className="mini-trend">
-              <Sparkline
-                values={daily.flatMap((entry) => (entry.sleep === null ? [] : [entry.sleep]))}
-              />
+              <Sparkline records={bodySeries(state, 'sleep', 7)} />
               <span>睡眠 · 近 7 天</span>
             </div>
           </div>

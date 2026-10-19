@@ -97,8 +97,8 @@ describe('React dashboard rendering', () => {
       createElement(DomainDetails, { ...propsFor(state), view: 'work' }),
     );
     expect(html).toContain('<strong>3.0</strong>');
-    expect(html).toContain('class="data-bar"');
-    expect(html).toContain(`${TODAY}：3.0 小时`);
+    expect(html).toContain('专注投入柱状图');
+    expect(html).toContain(`${TODAY}</th><td>3 小时`);
     expect(html).not.toContain('这段时间还没有记录');
   });
 
@@ -110,11 +110,9 @@ describe('React dashboard rendering', () => {
     const html = renderToStaticMarkup(
       createElement(TrendChart, { records, metric: 'sleep', unit: '小时' }),
     );
-    const path = html.match(/<path class="data-line" d="([^"]*)"/u)?.[1];
-    expect(html.match(/class="data-dot"/gu)).toHaveLength(9);
-    expect(path).toBeDefined();
-    expect(path?.match(/M/gu)).toHaveLength(9);
-    expect(path).not.toContain('L');
-    expect(html).toContain('2026-09-15：7 小时');
+    expect(html).toContain('有效记录 9/30 天');
+    expect(html).toContain('空缺日期不补零、不连线');
+    expect(html.match(/<td>未记录<\/td>/gu)).toHaveLength(21);
+    expect(html).toContain('2026-09-15</th><td>7 小时');
   });
 });
