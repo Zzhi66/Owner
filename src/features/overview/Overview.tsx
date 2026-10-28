@@ -55,6 +55,7 @@ export function Overview(props: ModuleProps) {
   const [addedTask, setAddedTask] = useState<{ id: string; title: string } | null>(null);
   const [dragging, setDragging] = useState<DomainId | null>(null);
   const [dragOver, setDragOver] = useState<DomainId | null>(null);
+  const [reordering, setReordering] = useState<DomainId | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const handleRefs = useRef<Partial<Record<DomainId, HTMLButtonElement | null>>>({});
   const balance = assets(state);
@@ -86,6 +87,13 @@ export function Overview(props: ModuleProps) {
     event.preventDefault();
     if (await moveCard(id, recentOrder.indexOf(id) + (event.key === 'ArrowRight' ? 1 : -1))) {
       handleRefs.current[id]?.focus();
+      toast('卡片顺序已调整');
+    }
+  }
+  async function moveFromControls(id: DomainId, offset: number) {
+    if (await moveCard(id, recentOrder.indexOf(id) + offset)) {
+      setReordering(null);
+      handleRefs.current[id]?.focus({ preventScroll: true });
       toast('卡片顺序已调整');
     }
   }
@@ -453,6 +461,10 @@ export function Overview(props: ModuleProps) {
                 className="drag-handle"
                 draggable
                 aria-label={`拖动${domain.name}卡片，或按左右方向键调整顺序`}
+                aria-expanded={reordering === id}
+                aria-controls={`reorder-${id}`}
+                title="点击调整位置，也可拖动或使用左右方向键"
+                onClick={() => setReordering(reordering === id ? null : id)}
                 onKeyDown={(event) => handleKey(event, id)}
                 onDragStart={(event) => {
                   setDragging(id);
@@ -469,6 +481,42 @@ export function Overview(props: ModuleProps) {
             </>
           )}
         </div>
+        {id !== 'assets' && reordering === id && (
+          <div
+            id={`reorder-${id}`}
+            className="card-order-controls"
+            role="group"
+            aria-label={`调整${domain.name}卡片位置`}
+          >
+            <span>调整位置</span>
+            <button
+              className="text-button"
+              disabled={recentOrder.indexOf(id) === 0}
+              onClick={() => moveFromControls(id, -1)}
+              aria-label={`将${domain.name}卡片前移`}
+            >
+              前移
+            </button>
+            <button
+              className="text-button"
+              disabled={recentOrder.indexOf(id) === recentOrder.length - 1}
+              onClick={() => moveFromControls(id, 1)}
+              aria-label={`将${domain.name}卡片后移`}
+            >
+              后移
+            </button>
+            <button
+              className="text-button"
+              onClick={() => {
+                setReordering(null);
+                handleRefs.current[id]?.focus({ preventScroll: true });
+              }}
+              aria-label={`完成${domain.name}卡片排序`}
+            >
+              完成
+            </button>
+          </div>
+        )}
         <div className="card-content">{content(id)}</div>
         {id !== 'assets' && (
           <div className="card-bottom">
