@@ -24,8 +24,11 @@ Windows 若 PowerShell 限制 npm.ps1，可使用 `npm.cmd`。依赖使用精确
 | npm run build | 类型检查后输出 build/，校验 dist/ 完整性 |
 | npm start / npm run preview:app | 构建后通过 http://127.0.0.1:5175 验证生产产物 |
 | npm run verify | 依次完成语法、lint、格式、测试、类型与构建 |
+| npm run test:e2e | 构建后启动 5187，使用一次性 Chromium 上下文执行首版验收 |
 
 所有服务只绑定本机，不静默换端口。端口占用时检查是否已有本项目服务，不终止未知进程。原型静态服务支持当前终端的 PORT 环境变量。新应用有热更新；手写原型编辑后需刷新。
+
+浏览器验收首次执行前安装独立引擎：`npx playwright install chromium`。Linux CI 使用 `npx playwright install --with-deps chromium`。测试、追踪、截图和下载文件均写入忽略目录 `tmp/playwright-results/`；不使用个人浏览器配置或 4173 来源。系统减少动态效果通过独立浏览器的媒体偏好模拟，触屏使用独立移动上下文，不修改操作系统设置。
 
 P0 的旧端口信息保留在历史报告中；当前命令和地址以本指南为准。4173 现为 React 的统一开发入口。若该端口仍是旧静态服务，需要先停止已确认属于本项目的旧服务，再启动 React。
 
@@ -102,7 +105,7 @@ P4 统计位于 `src/domain/statistics.ts`，ECharts 配置及按类型加载入
 
 ## 后续边界与版本管理
 
-第一版收尾分支为 `codex/v1-delivery`，最新证据和剩余项见 [第一版交付核对](V1_DELIVERY.md)。`.github/workflows/verify.yml` 在 push、pull request 或手动触发时，使用 `.nvmrc` 中的 Node 版本在 Linux / Windows 执行锁文件安装和同一套 verify；仅有 contents: read 权限，不部署、不上传个人记录。
+第一版交付分支为 `codex/v1-delivery`，最终证据见 [1.0.0 交付记录](RELEASE_1.0.0.md)，过程核对见 [V1](V1_DELIVERY.md)。`.github/workflows/verify.yml` 在 push、pull request 或手动触发时，使用 `.nvmrc` 中的 Node 版本在 Linux / Windows 执行锁文件安装和 verify，并增加独立 Chromium 验收作业；仅有 contents: read 权限，不部署、不上传个人记录。
 
 集成主分支为 `main`，已包含 React 基础、P2、P3 与 P4 的实现，原阶段分支保留为历史记录。GitHub 私有仓库为 https://github.com/Zzhi66/Owner。每次提交围绕一个可说明的变化，记录具体功能、检查结果和未覆盖范围；提交前运行 `git diff --check` 与相关检查。合并不代表尚未完成的浏览器验收已通过，相关清单继续保留。P0 历史报告保留原样。
 

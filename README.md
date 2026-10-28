@@ -21,6 +21,7 @@ npm run dev
 | npm start / npm run preview:app | 生产预览，5175 |
 | npm run check | 原型及服务 JavaScript 语法检查 |
 | npm run verify | 语法、lint、格式、测试、类型与构建 |
+| npm run test:e2e | 构建后以独立 Chromium 验收，使用临时记录空间，5187 |
 
 所有服务只绑定回环地址，端口占用时报错。4173、4174、P0 的 5173、file://、localhost 与 127.0.0.1 属于不同数据来源，不自动合并；尽量保持原地址 4173。
 
@@ -59,9 +60,9 @@ npm run dev
 
 P4 已接入按类型延迟加载的 ECharts：身体趋势、习惯热力图、投入统计与资产构成，配有日期范围、单位、来源和可键盘打开的数据表。图表和摘要共用统计输入，缺失不补零；金额隐藏时同时隐藏资产图表与数值表。
 
-本地版本为 0.3.0，133 项测试通过。实现及浏览器验收范围见 [P4 统计图表与首版验收](docs/P4_CHARTS_RELEASE.md)，日常使用见 [数据口径与恢复指南](docs/DATA_AND_RECOVERY.md)。没有引入后端、云同步、模型 API、外部设备或桌面打包；已加载页面可本地操作，尚未实现 PWA 离线冷启动。
+本地第一版为 **1.0.0**，已完成 P0–P4 的实现和本地验收：139 项自动测试及 10 项独立 Chromium 验收。发布范围、验证证据与截图见 [1.0.0 交付记录](docs/RELEASE_1.0.0.md)，日常使用见 [数据口径与恢复指南](docs/DATA_AND_RECOVERY.md)。没有引入后端、云同步、模型 API、外部设备或桌面打包；已加载页面可本地操作，尚未实现 PWA 离线冷启动。
 
-首版交付正在收尾，最新证据和待办见 [第一版交付核对](docs/V1_DELIVERY.md)。GitHub Actions 已配置在 push / pull request 时分别通过 Linux 与 Windows 执行 `npm ci` 和 `npm run verify`；配置存在不代表远端运行已通过，以对应提交的实际结果为准。
+GitHub Actions 在 Linux / Windows 上执行 `npm ci` 和 `npm run verify`，另在独立 Chromium 中执行浏览器验收。发布门槛为目标提交的三项作业均成功，再合并和创建版本标记；实际结果见 [验证工作流](https://github.com/Zzhi66/Owner/actions/workflows/verify.yml)。浏览器验收首次运行前需执行 `npx playwright install chromium`。
 
 ## 开发文件
 

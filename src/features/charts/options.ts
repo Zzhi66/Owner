@@ -33,7 +33,14 @@ export function trendOption(
   return {
     ...base,
     aria: { enabled: false },
-    grid: { left: 12, right: 18, top: 32, bottom: 12, containLabel: true },
+    grid: {
+      left: 12,
+      right: 18,
+      top: 32,
+      bottom: 12,
+      outerBoundsMode: 'same',
+      outerBoundsContain: 'axisLabel',
+    },
     tooltip: {
       ...tooltip,
       trigger: 'axis',

@@ -43,7 +43,7 @@ export async function exportBackup(
       format: 'owner-workbench-backup',
       version: 1,
       databaseVersion: 3,
-      appVersion: '0.3.0',
+      appVersion: '1.0.0',
       exportedAt: new Date().toISOString(),
       ...(active ? { activeSpaceId: active.value } : {}),
       spaces,

@@ -14,6 +14,10 @@ export function initialChunks(manifest) {
   visit(entry);
   return [...visited];
 }
+export function assertProductionCode(source, file = 'JavaScript') {
+  if (/Download the React DevTools|react(?:-dom(?:-client)?)?\.development\.js/u.test(source))
+    throw new Error(`生产构建包含 React 开发代码：${file}`);
+}
 export async function auditProduction(directory) {
   const manifest = JSON.parse(await readFile(resolve(directory, '.vite/manifest.json'), 'utf8'));
   const initial = initialChunks(manifest);
@@ -32,6 +36,7 @@ export async function auditProduction(directory) {
       const size = (await stat(path)).size;
       if (file.endsWith('.js') && size > 500_000)
         throw new Error(`生产 JS 分包超出 500 kB：${file}`);
+      if (file.endsWith('.js')) assertProductionCode(await readFile(path, 'utf8'), file);
     }
   }
   const html = await readFile(resolve(directory, 'index.html'), 'utf8');
