@@ -6,10 +6,10 @@ import { Overview } from '../features/overview/Overview';
 import { useWorkbench } from './useWorkbench';
 import { SpaceControls } from '../features/settings/SpaceControls';
 import { todayOf } from '../domain/selectors';
+import { usePageNavigation, viewFromHash } from './usePageNavigation';
+import { loadDomainDetails } from './detailModule';
+import { NavigationIndicator } from '../components/NavigationIndicator';
 
-const DomainDetails = lazy(() =>
-  import('../features/details/DomainDetails').then((module) => ({ default: module.DomainDetails })),
-);
 const AgentWorkspace = lazy(() =>
   import('../features/agent/AgentWorkspace').then((module) => ({ default: module.AgentWorkspace })),
 );
@@ -28,10 +28,6 @@ const BackupManager = lazy(() =>
   })),
 );
 
-function viewFromHash(): View {
-  const value = window.location.hash.slice(1);
-  return DOMAINS.some((domain) => domain.id === value) ? (value as View) : 'overview';
-}
 export function App() {
   const [toastText, setToastText] = useState('');
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -47,8 +43,53 @@ export function App() {
     [],
   );
   const workbench = useWorkbench(toast);
-  const { state, warning, mutate } = workbench;
-  const [view, setView] = useState<View>(viewFromHash);
+  const { state: storedState, warning, mutate } = workbench;
+  const [agentContext, setAgentContext] = useState<View>(viewFromHash);
+  const state = { ...storedState, context: agentContext };
+  const navigation = useRef<HTMLElement>(null);
+  const [details, setDetails] = useState<{
+    Component: typeof import('../features/details/DomainDetails').DomainDetails;
+  } | null>(null);
+  const [detailsError, setDetailsError] = useState(false);
+  const prepare = useCallback(async (next: View) => {
+    if (next === 'overview') return;
+    try {
+      const module = await loadDomainDetails();
+      setDetails((current) => current ?? { Component: module.DomainDetails });
+      setDetailsError(false);
+    } catch (error) {
+      setDetailsError(true);
+      throw error;
+    }
+  }, []);
+  const { view, activeView, navigate, pending } = usePageNavigation({
+    spaceId: workbench.active,
+    ready: workbench.ready,
+    prepare,
+    onChange: setAgentContext,
+    notify: toast,
+  });
+  const DomainDetails = details?.Component;
+  useEffect(() => {
+    if (!workbench.ready || view === 'overview') return;
+    let active = true;
+    void loadDomainDetails()
+      .then((module) => {
+        if (active) {
+          setDetails((current) => current ?? { Component: module.DomainDetails });
+          setDetailsError(false);
+        }
+      })
+      .catch(() => {
+        if (active) setDetailsError(true);
+      });
+    return () => {
+      active = false;
+    };
+  }, [view, workbench.ready]);
+  const preloadDetails = () => {
+    void loadDomainDetails().catch(() => {});
+  };
   const [dialog, setDialog] = useState<DialogRequest | null>(null);
   const [agentOpen, setAgentOpen] = useState(false);
   const [agentLoaded, setAgentLoaded] = useState(false);
@@ -74,42 +115,16 @@ export function App() {
   }, []);
   const onAgent = useCallback(
     (context: View) => {
-      mutate((draft) => {
-        draft.context = context;
-        draft.agentTab = 'chat';
-      });
+      setAgentContext(context);
+      if (state.agentTab !== 'chat')
+        mutate((draft) => {
+          draft.agentTab = 'chat';
+        });
       setAgentLoaded(true);
       setAgentOpen(true);
     },
-    [mutate],
+    [mutate, state.agentTab],
   );
-  const navigate = useCallback((next: View) => {
-    if (window.location.hash !== `#${next}`) window.location.hash = next;
-    else {
-      window.scrollTo({ top: 0 });
-      document.getElementById('page-title')?.focus({ preventScroll: true });
-    }
-  }, []);
-  useEffect(() => {
-    const normalize = () => {
-      const next = viewFromHash();
-      if (window.location.hash !== `#${next}`) window.history.replaceState(null, '', `#${next}`);
-      return next;
-    };
-    normalize();
-    const change = () => {
-      const next = normalize();
-      setView(next);
-      mutate((draft) => {
-        draft.context = next;
-        if (next !== 'overview') draft.selected = next;
-      });
-      window.scrollTo({ top: 0 });
-      queueMicrotask(() => document.getElementById('page-title')?.focus({ preventScroll: true }));
-    };
-    window.addEventListener('hashchange', change);
-    return () => window.removeEventListener('hashchange', change);
-  }, [mutate]);
   useEffect(() => {
     document.documentElement.dataset.theme = state.theme;
     document.title = `Owner · ${view === 'overview' ? '我的工作台' : DOMAINS.find((domain) => domain.id === view)?.name || '总览'}`;
@@ -150,20 +165,39 @@ export function App() {
       </a>
       <div className="landscape" aria-hidden="true" />
       <aside className="navigation" aria-label="主导航">
-        <a className="brand-mark" href="#overview" aria-label="Owner 首页">
+        <a
+          className="brand-mark"
+          href="#overview"
+          aria-label="Owner 首页"
+          onClick={(event) => {
+            if (
+              event.button === 0 &&
+              !event.metaKey &&
+              !event.ctrlKey &&
+              !event.shiftKey &&
+              !event.altKey
+            ) {
+              event.preventDefault();
+              navigate('overview');
+            }
+          }}
+        >
           <svg viewBox="0 0 48 48" aria-hidden="true">
             <circle cx="24" cy="24" r="21" />
             <circle cx="24" cy="24" r="15" />
             <path d="m24 13 11 19H13Z" />
           </svg>
         </a>
-        <nav>
+        <nav ref={navigation}>
+          <NavigationIndicator active={activeView} navigation={navigation} />
           {([{ id: 'overview', short: '总览', icon: 'home' }, ...DOMAINS] as const).map((item) => (
             <button
-              className={`nav-item ${view === item.id ? 'active' : ''}`}
+              className={`nav-item ${activeView === item.id ? 'active' : ''}`}
               key={item.id}
-              aria-current={view === item.id ? 'page' : undefined}
+              aria-current={activeView === item.id ? 'page' : undefined}
               onClick={() => navigate(item.id)}
+              onPointerEnter={item.id === 'overview' ? undefined : preloadDetails}
+              onFocus={item.id === 'overview' ? undefined : preloadDetails}
             >
               <Icon name={item.icon} />
               <span>{item.short}</span>
@@ -197,6 +231,11 @@ export function App() {
             </strong>
             <span className="breadcrumb-divider">/</span>
             <span id="nav-location">{domain?.name || '总览'}</span>
+            {pending && (
+              <span className="route-loading" role="status">
+                正在打开{DOMAINS.find((item) => item.id === activeView)?.name || '总览'}…
+              </span>
+            )}
           </div>
           <div className="topbar-actions">
             <span className="prototype-badge">
@@ -241,7 +280,7 @@ export function App() {
               PERSONAL COMMAND CENTER <i />
             </span>
             <h1 id="page-title" tabIndex={-1}>
-              {domain?.name || '个人控制中心'}
+              <span className="route-title">{domain?.name || '个人控制中心'}</span>
             </h1>
             <p>
               {view === 'overview'
@@ -286,20 +325,36 @@ export function App() {
             <span>OWNER / HUD v1.0</span>
           </div>
         </section>
-        <main className="workbench" id="overview">
-          <div className="personal-area">
+        <main className="workbench" id="page-main" aria-busy={pending}>
+          <div className="personal-area route-content" data-view={view}>
             {view === 'overview' ? (
               <Overview key={state.runtime?.spaceId} {...moduleProps} />
+            ) : DomainDetails ? (
+              <DomainDetails {...moduleProps} view={view} />
             ) : (
-              <Suspense
-                fallback={
-                  <p className="empty-line" role="status">
-                    正在打开详情…
-                  </p>
-                }
+              <section
+                className="route-placeholder glass-panel"
+                role="status"
+                aria-label="正在打开详情"
               >
-                <DomainDetails {...moduleProps} view={view} />
-              </Suspense>
+                <p>{detailsError ? '模块暂时无法打开。' : '正在打开详情…'}</p>
+                {detailsError ? (
+                  <button
+                    className="text-button"
+                    onClick={() => {
+                      void prepare(view).catch(() => {});
+                    }}
+                  >
+                    重试打开模块
+                  </button>
+                ) : (
+                  <>
+                    <div className="placeholder-heading" />
+                    <div className="placeholder-line" />
+                    <div className="placeholder-chart" />
+                  </>
+                )}
+              </section>
             )}
           </div>
         </main>
@@ -324,6 +379,7 @@ export function App() {
             {...moduleProps}
             isOpen={agentOpen}
             onClose={closeAgent}
+            onContextChange={setAgentContext}
           />
         </Suspense>
       )}
@@ -334,10 +390,7 @@ export function App() {
           if (agentOpen) closeAgent();
           else {
             if (!agentLoaded) {
-              mutate((draft) => {
-                draft.context = view;
-                if (view !== 'overview') draft.selected = view;
-              });
+              setAgentContext(view);
             }
             setAgentLoaded(true);
             setAgentOpen(true);
