@@ -1,0 +1,170 @@
+:root {
+  --motion-nav: 160ms;
+  --motion-content: 200ms;
+  --motion-exit: 90ms;
+  --motion-title: 120ms;
+  --motion-arrive: cubic-bezier(0.2, 0.7, 0.2, 1);
+  view-transition-name: none;
+}
+.navigation nav {
+  position: relative;
+  isolation: isolate;
+}
+.navigation nav > .nav-item {
+  z-index: 1;
+}
+.navigation nav > .nav-item.active {
+  background: transparent;
+}
+.navigation nav > .nav-item.active::before {
+  content: none;
+}
+.nav-indicator {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+  border-radius: 4px;
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--green) 14%, transparent),
+    color-mix(in srgb, var(--green) 2%, transparent)
+  );
+  transition: transform var(--motion-nav) var(--motion-arrive);
+  visibility: hidden;
+}
+.nav-indicator[data-ready='true'] {
+  visibility: visible;
+}
+.nav-indicator::before {
+  content: '';
+  position: absolute;
+  left: -10px;
+  top: 15px;
+  bottom: 15px;
+  width: 2px;
+  background: var(--green);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--green) 50%, transparent);
+}
+.route-content {
+  view-transition-name: route-content;
+  overflow-anchor: none;
+}
+.route-title {
+  display: inline-block;
+  view-transition-name: route-title;
+}
+.route-loading {
+  color: var(--green);
+  font-size: 11px;
+  animation: route-wait 150ms step-end both;
+}
+@keyframes route-wait {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.route-placeholder {
+  padding: 26px;
+  min-height: 460px;
+}
+.route-placeholder p {
+  color: var(--muted);
+}
+.placeholder-heading,
+.placeholder-line,
+.placeholder-chart {
+  background: var(--track);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
+.placeholder-heading {
+  width: min(180px, 65%);
+  height: 24px;
+  margin-block: 24px;
+}
+.placeholder-line {
+  width: min(360px, 85%);
+  height: 12px;
+}
+.placeholder-chart {
+  height: 240px;
+  margin-top: 28px;
+  opacity: 0.5;
+}
+::view-transition {
+  pointer-events: none;
+}
+::view-transition-group(route-content),
+::view-transition-group(route-title) {
+  animation: none;
+}
+::view-transition-old(route-content),
+::view-transition-new(route-content),
+::view-transition-old(route-title),
+::view-transition-new(route-title) {
+  mix-blend-mode: normal;
+}
+::view-transition-old(route-content) {
+  animation: route-leave var(--motion-exit) ease-in both;
+}
+::view-transition-new(route-content) {
+  animation: route-arrive var(--motion-content) var(--motion-arrive) both;
+}
+::view-transition-old(route-title) {
+  animation: route-leave var(--motion-exit) ease-in both;
+}
+::view-transition-new(route-title) {
+  animation: route-title-arrive var(--motion-title) ease-out both;
+}
+@keyframes route-leave {
+  to {
+    opacity: 0;
+  }
+}
+@keyframes route-arrive {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes route-title-arrive {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@media (max-width: 800px) {
+  .nav-indicator::before {
+    left: -6px;
+  }
+}
+@media (max-width: 600px) {
+  .nav-indicator::before {
+    inset: auto 14px -6px;
+    height: 2px;
+    width: auto;
+  }
+  .route-placeholder {
+    padding: 18px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .nav-indicator {
+    transition: none;
+  }
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
+  }
+}

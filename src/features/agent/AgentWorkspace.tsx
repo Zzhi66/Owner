@@ -1,7 +1,7 @@
 import { todayOf } from '../../domain/selectors';
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { Icon } from '../../components/Icon';
-import type { ModuleProps, WorkbenchState } from '../../domain/models';
+import type { ModuleProps, View, WorkbenchState } from '../../domain/models';
 import { uid } from '../../domain/selectors';
 import { contextName, createSummary } from './summary';
 
@@ -33,7 +33,12 @@ export function AgentWorkspace({
   toast,
   isOpen,
   onClose,
-}: ModuleProps & { isOpen: boolean; onClose: () => void }) {
+  onContextChange,
+}: ModuleProps & {
+  isOpen: boolean;
+  onClose: () => void;
+  onContextChange?: (context: View) => void;
+}) {
   const TODAY = todayOf(state);
   const [prompt, setPrompt] = useState('');
   const [busy, setBusy] = useState(false);
@@ -258,11 +263,13 @@ export function AgentWorkspace({
         <button
           className="icon-button"
           aria-label="切换到个人总览上下文"
-          onClick={() =>
-            mutate((draft) => {
-              draft.context = 'overview';
-            })
-          }
+          onClick={() => {
+            if (onContextChange) onContextChange('overview');
+            else
+              mutate((draft) => {
+                draft.context = 'overview';
+              });
+          }}
         >
           <Icon name="x" />
         </button>
