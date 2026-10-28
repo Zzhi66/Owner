@@ -791,7 +791,7 @@ svg.icon {
   gap: 8px;
   margin-bottom: 12px;
 }
-.panel-heading h3 {
+.panel-heading :is(h2, h3) {
   font-size: 13px;
   font-weight: 500;
   margin-top: 3px;
@@ -1873,7 +1873,7 @@ svg.icon {
   .panel-tools .text-button {
     font-size: 9px;
   }
-  .panel-heading h3 {
+  .panel-heading :is(h2, h3) {
     font-size: 12px;
   }
   .agent-header {
@@ -2152,7 +2152,7 @@ svg.icon {
 .detail-panel .panel-heading {
   margin-bottom: 24px;
 }
-.detail-panel .panel-heading h3 {
+.detail-panel .panel-heading :is(h2, h3) {
   font-size: 18px;
 }
 .detail-panel .area-heading {
@@ -2383,7 +2383,7 @@ svg.icon {
 .wellbeing-history {
   margin-top: 24px;
 }
-.wellbeing-history h4 {
+.wellbeing-history :is(h3, h4) {
   font-weight: 500;
 }
 .inline-actions {
@@ -2579,7 +2579,7 @@ svg.icon {
   .detail-panel .panel-heading {
     flex-wrap: wrap;
   }
-  .detail-panel .panel-heading h3 {
+  .detail-panel .panel-heading :is(h2, h3) {
     font-size: 16px;
   }
   .detail-footer {

@@ -444,7 +444,9 @@ export function Managers({
           </section>
           <section className="settings-section">
             <h3>卡片顺序</h3>
-            <p>拖动卡片右上角的六点按钮，或聚焦按钮后按左右方向键调整顺序。</p>
+            <p>
+              点击卡片右上角的六点按钮，使用前移 / 后移调整位置；也可拖动，或聚焦后按左右方向键。
+            </p>
           </section>
           <section className="settings-section" hidden={state.runtime?.kind !== 'demo'}>
             <h3>恢复示例</h3>

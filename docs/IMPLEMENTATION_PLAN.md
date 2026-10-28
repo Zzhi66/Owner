@@ -2,7 +2,7 @@
 
 日期：2026-10-16
 
-状态：P0 已完成，P1–P3 已实施，P4 图表已实现、收尾验收中。各阶段验证范围见 [P1](P1_REACT_MIGRATION.md)、[P2](P2_DATE_STORAGE.md)、[P3](P3_RECORDS_BACKUP.md)、[P4](P4_CHARTS_RELEASE.md)；进度见 [实施清单](ROADMAP.md)。
+状态（2026-10-28）：P0–P4 已实施并完成本地第一版验收，交付候选版本 1.0.0；发布按目标提交 CI、合并与版本标记门槛执行。最终证据见 [1.0.0 交付记录](RELEASE_1.0.0.md)，历史阶段见 [P1](P1_REACT_MIGRATION.md)、[P2](P2_DATE_STORAGE.md)、[P3](P3_RECORDS_BACKUP.md)、[P4](P4_CHARTS_RELEASE.md)；进度见 [实施清单](ROADMAP.md)。
 
 基线：Git 初始提交 `8472332`、`dist/` 中的可运行原型及 [HUD 总览截图](../reference/owner-jarvis-overview.jpg)
 

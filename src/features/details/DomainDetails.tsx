@@ -83,7 +83,7 @@ export function DomainDetails({
         <TrendChart records={chartRecords} metric={metric} unit={unit} />
         <section className="wellbeing-history">
           <div className="manager-heading">
-            <h4>心情与精力记录</h4>
+            <h3>心情与精力记录</h3>
             <button
               className="text-button"
               onClick={() => open({ kind: 'record', record: 'wellbeing' })}
@@ -343,7 +343,7 @@ export function DomainDetails({
         <div className="panel-heading">
           <div>
             <span className="eyebrow small">{domain.eyebrow}</span>
-            <h3 id="detail-title">{domain.title}</h3>
+            <h2 id="detail-title">{domain.title}</h2>
           </div>
           <div className="panel-tools">
             <button className="text-button" onClick={() => onAgent(view)}>

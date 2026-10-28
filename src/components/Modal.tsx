@@ -30,6 +30,18 @@ export function Modal({
       ref={ref}
       className="modal content-modal"
       aria-labelledby="modal-title"
+      onKeyDownCapture={(event) => {
+        if (
+          event.key === 'Escape' &&
+          !event.nativeEvent.isComposing &&
+          event.nativeEvent.keyCode !== 229
+        ) {
+          // Search inputs otherwise consume the first Escape to clear their text.
+          event.preventDefault();
+          event.stopPropagation();
+          onClose();
+        }
+      }}
       onCancel={(event) => {
         event.preventDefault();
         onClose();

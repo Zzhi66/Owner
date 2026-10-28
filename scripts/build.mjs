@@ -20,7 +20,9 @@ async function fingerprint(directory) {
   return result;
 }
 
-const config = await resolveConfig({}, 'build');
+// resolveConfig defaults to development even for the build command.
+process.env.NODE_ENV = 'production';
+const config = await resolveConfig({}, 'build', 'production', 'production');
 assertBuildOutput(config.root, config.build.outDir);
 const prototypePath = join(config.root, 'dist');
 const before = JSON.stringify(await fingerprint(prototypePath));

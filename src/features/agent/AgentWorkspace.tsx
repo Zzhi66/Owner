@@ -39,7 +39,7 @@ export function AgentWorkspace({
   const [busy, setBusy] = useState(false);
   const [showInfo, setShowInfo] = useState(false);
   const busyRef = useRef(false);
-  const timer = useRef<ReturnType<typeof window.setTimeout> | null>(null);
+  const timer = useRef<number | null>(null);
   const activeTask = useRef<string | null>(null);
   const mutateRef = useRef(mutate);
   const input = useRef<HTMLTextAreaElement>(null);
@@ -376,7 +376,13 @@ export function AgentWorkspace({
             onChange={(event) => setPrompt(event.target.value)}
             placeholder="想了解什么，或想推进哪件事？"
             onKeyDown={(event) => {
-              if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
+              // Some IMEs end composition before Enter; keyCode 229 still means IME input.
+              if (
+                event.key === 'Enter' &&
+                !event.shiftKey &&
+                !event.nativeEvent.isComposing &&
+                event.nativeEvent.keyCode !== 229
+              ) {
                 event.preventDefault();
                 sendPrompt(prompt);
               }
